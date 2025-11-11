@@ -1,0 +1,8 @@
+{
+  "dart.debuggerType": "flutter",
+  "dart.flutterDebugPort": 9100,
+  "dart.debuggerHandlesPathsEverywhereForBreakpoints": true,
+  "files.associations": {
+    "*.dart": "dart"
+  }
+}
