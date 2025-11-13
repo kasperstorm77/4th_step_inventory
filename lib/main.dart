@@ -6,7 +6,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 // Import existing files for initialization
 import 'models/inventory_entry.dart';
+import 'models/i_am_definition.dart';
 import 'services/drive_service.dart';
+import 'services/i_am_service.dart';
 
 import 'google_drive_client.dart';
 
@@ -19,6 +21,7 @@ void main() async {
   await Hive.initFlutter();
 
   Hive.registerAdapter(InventoryEntryAdapter());
+  Hive.registerAdapter(IAmDefinitionAdapter());
 
   try {
     await Hive.openBox<InventoryEntry>('entries');
@@ -30,8 +33,21 @@ void main() async {
     print('Cleared corrupted entries box and created new one');
   }
 
+  // Open I Am definitions box
+  try {
+    await Hive.openBox<IAmDefinition>('i_am_definitions');
+  } catch (e) {
+    print('Error opening i_am_definitions box: $e');
+    await Hive.deleteBoxFromDisk('i_am_definitions');
+    await Hive.openBox<IAmDefinition>('i_am_definitions');
+    print('Cleared corrupted i_am_definitions box and created new one');
+  }
+
   // Open a separate settings box for sync preferences
   await Hive.openBox('settings');
+
+  // Initialize I Am definitions with default value
+  await IAmService().initializeDefaults();
 
   // Attempt silent sign-in and initialize Drive client early so CRUD
   // operations can sync without the user opening Settings.

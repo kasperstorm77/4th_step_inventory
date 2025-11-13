@@ -14,23 +14,34 @@ class InventoryEntry extends HiveObject {
   String? affect;
 
   @HiveField(3)
-  String? part;
+  String? part;  // Now represents "My Take"
 
   @HiveField(4)
-  String? defect;
+  String? defect;  // Now represents "Shortcomings"
+
+  @HiveField(5)
+  String? iAmId;  // Links to IAmDefinition by ID
 
   InventoryEntry(
     this.resentment,
     this.reason,
     this.affect,
     this.part,
-    this.defect,
-  );
+    this.defect, {
+    this.iAmId,
+  });
 
   // Safe getters that provide empty strings for null values
   String get safeResentment => resentment ?? '';
   String get safeReason => reason ?? '';
   String get safeAffect => affect ?? '';
-  String get safePart => part ?? '';
-  String get safeDefect => defect ?? '';
+  String get safePart => part ?? '';  // "My Take"
+  String get safeDefect => defect ?? '';  // "Shortcomings"
+  
+  // Convenience getters with new names
+  String? get myTake => part;
+  set myTake(String? value) => part = value;
+  
+  String? get shortcomings => defect;
+  set shortcomings(String? value) => defect = value;
 }

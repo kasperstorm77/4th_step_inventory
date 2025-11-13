@@ -24,6 +24,7 @@ dependencies:
   path_provider: ^2.1.1
   google_sign_in: ^5.4.2
   package_info_plus: ^8.0.0
+  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:
