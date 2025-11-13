@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 final Map<String, Map<String, String>> localizedValues = {
   'en': {
-    'app_title': 'AA 4 Step Inventory',
+    'app_title': '4th Step Inventory',
     'form_title': 'Form',
     'entries_title': 'Entries',
     'settings_title': 'Settings',
@@ -35,7 +35,7 @@ final Map<String, Map<String, String>> localizedValues = {
     'close': 'Close',
   },
   'da': {
-    'app_title': 'AA 4 Trins Inventory',
+    'app_title': '4. Trins Inventory',
     'form_title': 'Form',
     'entries_title': 'Indtastninger',
     'settings_title': 'Indstillinger',
