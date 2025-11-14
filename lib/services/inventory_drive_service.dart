@@ -3,16 +3,16 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/inventory_entry.dart';
-import '../utils/sync_utils.dart';
+import '../models/i_am_definition.dart';
 import 'google_drive/drive_config.dart';
-import 'google_drive/google_drive_service.dart';
+import 'google_drive/mobile_drive_service.dart';
 
 // --------------------------------------------------------------------------
-// App-Specific Inventory Drive Service
+// App-Specific Inventory Drive Service - Mobile Only
 // --------------------------------------------------------------------------
 
-/// App-specific Google Drive service for inventory data
-/// Uses the generic GoogleDriveService with inventory-specific logic
+/// App-specific Google Drive service for inventory data (mobile platforms)
+/// Uses the MobileDriveService with inventory-specific logic
 class InventoryDriveService {
   static InventoryDriveService? _instance;
   static InventoryDriveService get instance {
@@ -20,7 +20,7 @@ class InventoryDriveService {
     return _instance!;
   }
 
-  late final GoogleDriveService _driveService;
+  late final MobileDriveService _driveService;
   final StreamController<int> _uploadCountController = StreamController<int>.broadcast();
 
   InventoryDriveService._() {
@@ -32,7 +32,7 @@ class InventoryDriveService {
       parentFolder: 'appDataFolder',
     );
 
-    _driveService = GoogleDriveService(config: config);
+    _driveService = MobileDriveService(config: config);
     
     // Note: We don't auto-listen to all upload events anymore
     // UI notifications are only triggered for user-initiated actions
@@ -78,19 +78,33 @@ class InventoryDriveService {
     }
 
     try {
-      // Serialize entries in background isolate
-      final jsonString = await compute(
-        serializeEntries,
-        box.values.map((e) => {
-          'resentment': e.resentment,
-          'reason': e.reason,
-          'affect': e.affect,
-          'part': e.part,
-          'defect': e.defect,
-        }).toList(),
-      );
+      // Get I Am definitions
+      final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
+      final iAmDefinitions = iAmBox.values.map((def) => {
+        'id': def.id,
+        'name': def.name,
+        'reasonToExist': def.reasonToExist,
+      }).toList();
+
+      // Prepare complete export data with I Am definitions
+      final entries = box.values.map((e) => e.toJson()).toList();
+      
+      final now = DateTime.now().toUtc();
+      final exportData = {
+        'version': '2.0',
+        'exportDate': now.toIso8601String(),
+        'lastModified': now.toIso8601String(), // For sync conflict detection
+        'iAmDefinitions': iAmDefinitions,
+        'entries': entries,
+      };
+
+      // Serialize to JSON string
+      final jsonString = json.encode(exportData);
 
       await _driveService.uploadContent(jsonString);
+      
+      // Save the upload timestamp locally
+      await _saveLastModified(now);
       
       // Only notify UI for user-initiated uploads
       if (notifyUI) {
@@ -105,22 +119,38 @@ class InventoryDriveService {
   void scheduleUploadFromBox(Box<InventoryEntry> box) {
     if (!syncEnabled || !isAuthenticated) return;
 
-    // Serialize entries for upload
-    final entries = box.values.map((e) => {
-      'resentment': e.resentment,
-      'reason': e.reason,
-      'affect': e.affect,
-      'part': e.part,
-      'defect': e.defect,
-    }).toList();
+    try {
+      // Get I Am definitions
+      final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
+      final iAmDefinitions = iAmBox.values.map((def) => {
+        'id': def.id,
+        'name': def.name,
+        'reasonToExist': def.reasonToExist,
+      }).toList();
 
-    // Use compute for serialization, then schedule upload
-    // Note: This is background sync, so no UI notifications are triggered
-    compute(serializeEntries, entries).then((jsonString) {
+      // Prepare complete export data with I Am definitions
+      final entries = box.values.map((e) => e.toJson()).toList();
+      
+      final now = DateTime.now().toUtc();
+      final exportData = {
+        'version': '2.0',
+        'exportDate': now.toIso8601String(),
+        'lastModified': now.toIso8601String(), // For sync conflict detection
+        'iAmDefinitions': iAmDefinitions,
+        'entries': entries,
+      };
+
+      // Serialize to JSON string
+      final jsonString = json.encode(exportData);
+      
+      // Save the upload timestamp locally (fire and forget)
+      _saveLastModified(now);
+      
+      // Schedule upload (debounced)
       _driveService.scheduleUpload(jsonString);
-    }).catchError((e) {
-      // Serialization failed, upload will be skipped
-    });
+    } catch (e) {
+      // Background sync failed, will retry on next change
+    }
   }
 
   /// Upload from box with UI notification (for user-initiated actions)
@@ -175,6 +205,113 @@ class InventoryDriveService {
       await settingsBox.put('syncEnabled', enabled);
     } catch (e) {
       if (kDebugMode) print('InventoryDriveService: Failed to save sync state - $e');
+    }
+  }
+
+  /// Save last modified timestamp
+  Future<void> _saveLastModified(DateTime timestamp) async {
+    try {
+      final settingsBox = await Hive.openBox('settings');
+      await settingsBox.put('lastModified', timestamp.toIso8601String());
+    } catch (e) {
+      if (kDebugMode) print('InventoryDriveService: Failed to save lastModified - $e');
+    }
+  }
+
+  /// Get local last modified timestamp
+  Future<DateTime?> _getLocalLastModified() async {
+    try {
+      final settingsBox = await Hive.openBox('settings');
+      final timestampStr = settingsBox.get('lastModified') as String?;
+      if (timestampStr != null) {
+        return DateTime.parse(timestampStr);
+      }
+    } catch (e) {
+      if (kDebugMode) print('InventoryDriveService: Failed to get lastModified - $e');
+    }
+    return null;
+  }
+
+  /// Check if remote data is newer than local and auto-sync if needed
+  Future<bool> checkAndSyncIfNeeded() async {
+    if (kDebugMode) print('InventoryDriveService: Checking for remote updates...');
+    
+    if (!syncEnabled) {
+      if (kDebugMode) print('InventoryDriveService: Sync disabled, skipping check');
+      return false;
+    }
+    
+    if (!isAuthenticated) {
+      if (kDebugMode) print('InventoryDriveService: Not authenticated, skipping check');
+      return false;
+    }
+
+    try {
+      // Download remote content
+      if (kDebugMode) print('InventoryDriveService: Downloading remote file...');
+      final content = await _driveService.downloadContent();
+      if (content == null) {
+        if (kDebugMode) print('InventoryDriveService: No remote file found');
+        return false;
+      }
+
+      // Parse remote timestamp
+      final decoded = json.decode(content) as Map<String, dynamic>;
+      final remoteTimestampStr = decoded['lastModified'] as String?;
+      
+      if (remoteTimestampStr == null) {
+        if (kDebugMode) print('InventoryDriveService: Remote file has no timestamp, skipping auto-sync');
+        return false;
+      }
+
+      final remoteTimestamp = DateTime.parse(remoteTimestampStr);
+      final localTimestamp = await _getLocalLastModified();
+
+      // If local timestamp is null or remote is newer, sync down
+      if (localTimestamp == null || remoteTimestamp.isAfter(localTimestamp)) {
+        if (kDebugMode) {
+          print('InventoryDriveService: ⚠️ Remote data is NEWER - syncing down');
+          print('  Local:  ${localTimestamp?.toIso8601String() ?? "never synced"}');
+          print('  Remote: ${remoteTimestamp.toIso8601String()}');
+        }
+
+        // Parse and apply the data
+        final entries = await _parseInventoryContent(content);
+        final iAmDefinitions = decoded['iAmDefinitions'] as List<dynamic>?;
+
+        // Update I Am definitions first
+        if (iAmDefinitions != null) {
+          final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
+          await iAmBox.clear();
+          for (final def in iAmDefinitions) {
+            final id = def['id'] as String;
+            final name = def['name'] as String;
+            final reasonToExist = def['reasonToExist'] as String?;
+            await iAmBox.put(id, IAmDefinition(id: id, name: name, reasonToExist: reasonToExist));
+          }
+        }
+
+        // Update entries
+        final entriesBox = Hive.box<InventoryEntry>('entries');
+        await entriesBox.clear();
+        await entriesBox.addAll(entries);
+
+        // Save the remote timestamp as our new local timestamp
+        await _saveLastModified(remoteTimestamp);
+
+        if (kDebugMode) print('InventoryDriveService: ✓ Auto-sync complete (${entries.length} entries, ${iAmDefinitions?.length ?? 0} I Ams)');
+        return true;
+      } else {
+        if (kDebugMode) {
+          print('InventoryDriveService: ✓ Local data is up to date');
+          print('  Local:  ${localTimestamp.toIso8601String()}');
+          print('  Remote: ${remoteTimestamp.toIso8601String()}');
+        }
+        return false;
+      }
+    } catch (e) {
+      if (kDebugMode) print('InventoryDriveService: ❌ Auto-sync check failed - $e');
+      return false;
     }
   }
 

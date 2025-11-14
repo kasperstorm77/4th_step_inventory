@@ -2,15 +2,33 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
 import '../models/inventory_entry.dart';
 import '../models/i_am_definition.dart';
 import '../localizations.dart';
+import '../utils/platform_helper.dart';
+
+// Platform-specific imports
+// Only import on mobile platforms to avoid compilation errors on desktop
+import 'package:flutter_file_dialog/flutter_file_dialog.dart' 
+    if (dart.library.html) 'package:flutter_file_dialog/flutter_file_dialog.dart' 
+    if (dart.library.io) 'package:flutter_file_dialog/flutter_file_dialog.dart';
+import 'package:google_sign_in/google_sign_in.dart'
+    if (dart.library.html) 'package:google_sign_in/google_sign_in.dart'
+    if (dart.library.io) 'package:google_sign_in/google_sign_in.dart';
+    
+// Services - conditionally used based on platform
 import '../google_drive_client.dart';
 import '../services/drive_service.dart';
-import 'package:flutter/foundation.dart';
+
+// Desktop-only imports (only used when PlatformHelper.isDesktop)
+import '../services/google_drive/desktop_drive_client.dart'
+    if (dart.library.html) '../services/google_drive/desktop_drive_client.dart'
+    if (dart.library.io) '../services/google_drive/desktop_drive_client.dart';
+import '../services/google_drive/desktop_drive_auth.dart'
+    if (dart.library.html) '../services/google_drive/desktop_drive_auth.dart'
+    if (dart.library.io) '../services/google_drive/desktop_drive_auth.dart';
 
 // Google Drive scopes
 const String driveAppdataScope =
@@ -30,7 +48,8 @@ class DataManagementTab extends StatefulWidget {
 }
 
 class _DataManagementTabState extends State<DataManagementTab> {
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: _scopes);
+  // Platform-specific: GoogleSignIn only available on mobile (Android/iOS)
+  GoogleSignIn? _googleSignIn;
   GoogleSignInAccount? _currentUser;
   GoogleDriveClient? _driveClient;
 
@@ -45,29 +64,42 @@ class _DataManagementTabState extends State<DataManagementTab> {
     super.initState();
     _initSettings();
 
-    _googleSignIn.onCurrentUserChanged.listen((account) {
-      setState(() {
-        _currentUser = account;
-        if (_currentUser == null) {
-          _syncEnabled = false;
-          Hive.box('settings').put('syncEnabled', false);
-          _driveClient = null;
+    // Initialize GoogleSignIn only on mobile platforms
+    if (PlatformHelper.isMobile) {
+      _googleSignIn = GoogleSignIn(scopes: _scopes);
+      
+      _googleSignIn!.onCurrentUserChanged.listen((account) {
+        setState(() {
+          _currentUser = account;
+          if (_currentUser == null) {
+            _syncEnabled = false;
+            Hive.box('settings').put('syncEnabled', false);
+            _driveClient = null;
+          }
+        });
+        if (account != null) {
+          _initializeDriveClient(account);
+          // Schedule the prompt rather than showing immediately. Scheduling
+          // ensures the widget tree is ready to present a dialog and avoids
+          // timing issues where onCurrentUserChanged fires before the UI is
+          // prepared to show a modal.
+          _schedulePromptForAccount(account);
         }
       });
-      if (account != null) {
-        _initializeDriveClient(account);
-        // Schedule the prompt rather than showing immediately. Scheduling
-        // ensures the widget tree is ready to present a dialog and avoids
-        // timing issues where onCurrentUserChanged fires before the UI is
-        // prepared to show a modal.
-        _schedulePromptForAccount(account);
-      }
-    });
 
-    _googleSignIn.signInSilently().catchError((e) {
-      print('Silent sign-in failed: $e');
-      return null;
-    });
+      _googleSignIn!.signInSilently().catchError((e) {
+        print('Silent sign-in failed: $e');
+        return null;
+      });
+    } else {
+      // On desktop platforms, disable sync by default
+      setState(() {
+        _syncEnabled = false;
+      });
+      if (kDebugMode) {
+        print('Google Drive sync not available on ${PlatformHelper.platformName}');
+      }
+    }
   }
 
   Future<void> _initSettings() async {
@@ -124,13 +156,22 @@ class _DataManagementTabState extends State<DataManagementTab> {
 
   Future<void> _handleSignIn() async {
     final messenger = ScaffoldMessenger.of(context);
+    
+    // Google Sign-In only available on mobile platforms
+    if (_googleSignIn == null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Google Drive sync not available on ${PlatformHelper.platformName}'))
+      );
+      return;
+    }
+    
     try {
       // Mark that an interactive sign-in was requested. We keep both the
       // 'requested' and 'interactive' flags to be resilient to timing where
       // `onCurrentUserChanged` may fire before/after this method resumes.
       _interactiveSignInRequested = true;
       _interactiveSignIn = true;
-      final account = await _googleSignIn.signIn();
+      final account = await _googleSignIn!.signIn();
       if (account != null) {
         await _initializeDriveClient(account);
         // Schedule the prompt; this is resilient to the ordering of
@@ -224,7 +265,11 @@ class _DataManagementTabState extends State<DataManagementTab> {
   }
 
   Future<void> _handleSignOut() async {
-    await _googleSignIn.signOut();
+    // Only sign out if GoogleSignIn is available (mobile platforms)
+    if (_googleSignIn != null) {
+      await _googleSignIn!.signOut();
+    }
+    
     setState(() {
       _syncEnabled = false;
       Hive.box('settings').put('syncEnabled', false);
@@ -312,6 +357,182 @@ class _DataManagementTabState extends State<DataManagementTab> {
     }
   }
 
+  // ============================================================================
+  // DESKTOP MANUAL DRIVE SYNC
+  // ============================================================================
+
+  /// Desktop: Manual upload to Google Drive
+  Future<void> _desktopUploadToDrive() async {
+    final messenger = ScaffoldMessenger.of(context);
+    
+    try {
+      // Authenticate with Google
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Opening Google authentication...')),
+      );
+      
+      final authClient = await DesktopDriveAuth.authenticate(context);
+      if (authClient == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Authentication cancelled')),
+        );
+        return;
+      }
+
+      // Create Drive client
+      final driveClient = DesktopDriveClient.createFromAuthClient(authClient);
+
+      // Prepare JSON data (same format as mobile)
+      final entries = widget.box.values.map((e) => e.toJson()).toList();
+      final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
+      final iAmDefinitions = iAmBox.values.map((def) => {
+        'id': def.id,
+        'name': def.name,
+        'reasonToExist': def.reasonToExist,
+      }).toList();
+
+      final now = DateTime.now().toUtc();
+      final exportData = {
+        'version': '2.0',
+        'exportDate': now.toIso8601String(),
+        'lastModified': now.toIso8601String(), // For sync conflict detection
+        'iAmDefinitions': iAmDefinitions,
+        'entries': entries,
+      };
+
+      final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
+
+      // Upload to Drive
+      await driveClient.uploadFile(jsonString);
+      
+      // Save the upload timestamp locally
+      final settingsBox = Hive.box('settings');
+      await settingsBox.put('lastModified', now.toIso8601String());
+      
+      messenger.showSnackBar(
+        SnackBar(content: Text('Uploaded ${entries.length} entries to Google Drive')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Upload to Drive failed: $e')),
+      );
+    }
+  }
+
+  /// Desktop: Manual download from Google Drive
+  Future<void> _desktopFetchFromDrive() async {
+    final messenger = ScaffoldMessenger.of(context);
+    
+    try {
+      // Authenticate with Google
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Opening Google authentication...')),
+      );
+      
+      final authClient = await DesktopDriveAuth.authenticate(context);
+      if (authClient == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Authentication cancelled')),
+        );
+        return;
+      }
+
+      // Create Drive client
+      final driveClient = DesktopDriveClient.createFromAuthClient(authClient);
+
+      // Download from Drive
+      final jsonString = await driveClient.downloadFile();
+      if (jsonString == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('No data found in Google Drive')),
+        );
+        return;
+      }
+
+      // Confirm import
+      final confirmImport = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Import from Google Drive'),
+          content: const Text(
+            'This will REPLACE all current data with data from Google Drive.\n\n'
+            'Make sure you have exported your current data first!\n\n'
+            'Continue with import?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(t(context, 'cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Import from Drive'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmImport != true) return;
+
+      // Parse and import
+      final decoded = jsonDecode(jsonString) as Map<String, dynamic>;
+      final entriesBox = widget.box;
+      final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
+
+      // Import I Am definitions first
+      if (decoded.containsKey('iAmDefinitions')) {
+        final iAmDefs = decoded['iAmDefinitions'] as List;
+        final existingDefs = iAmBox.values.toList();
+        for (int i = existingDefs.length - 1; i >= 0; i--) {
+          await iAmBox.deleteAt(i);
+        }
+        
+        for (final defJson in iAmDefs) {
+          final def = IAmDefinition(
+            id: defJson['id'] as String,
+            name: defJson['name'] as String,
+            reasonToExist: defJson['reasonToExist'] as String?,
+          );
+          await iAmBox.add(def);
+        }
+      }
+
+      // Import entries
+      final entries = decoded['entries'] as List;
+      await entriesBox.clear();
+      for (final entryJson in entries) {
+        final entry = InventoryEntry.fromJson(entryJson as Map<String, dynamic>);
+        await entriesBox.add(entry);
+      }
+
+      // Save the remote timestamp as our new local timestamp
+      final remoteTimestamp = decoded['lastModified'] as String?;
+      if (remoteTimestamp != null) {
+        final settingsBox = Hive.box('settings');
+        await settingsBox.put('lastModified', remoteTimestamp);
+      }
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Imported ${entries.length} entries from Google Drive'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Fetch from Drive failed: $e')),
+      );
+    }
+  }
+
+  // ============================================================================
+  // END DESKTOP MANUAL DRIVE SYNC
+  // ============================================================================
+
   Future<void> _exportJson() async {
     final messenger = ScaffoldMessenger.of(context);
     if (widget.box.isEmpty) {
@@ -339,11 +560,30 @@ class _DataManagementTabState extends State<DataManagementTab> {
       final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
       final bytes = Uint8List.fromList(utf8.encode(jsonString));
 
-      final params = SaveFileDialogParams(
-        data: bytes,
-        fileName: 'inventory_export_${DateTime.now().millisecondsSinceEpoch}.json',
-      );
-      final savedPath = await FlutterFileDialog.saveFile(params: params);
+      String? savedPath;
+      
+      // Platform-specific file save dialog
+      if (PlatformHelper.isMobile) {
+        // Mobile: Use flutter_file_dialog
+        final params = SaveFileDialogParams(
+          data: bytes,
+          fileName: 'inventory_export_${DateTime.now().millisecondsSinceEpoch}.json',
+        );
+        savedPath = await FlutterFileDialog.saveFile(params: params);
+      } else if (PlatformHelper.isDesktop || PlatformHelper.isWeb) {
+        // Desktop/Web: Use file_picker
+        savedPath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save JSON Export',
+          fileName: 'inventory_export_${DateTime.now().millisecondsSinceEpoch}.json',
+          type: FileType.custom,
+          allowedExtensions: ['json'],
+        );
+        
+        // On desktop, file_picker returns path but doesn't write the file
+        if (savedPath != null && (PlatformHelper.isDesktop || PlatformHelper.isWeb)) {
+          await File(savedPath).writeAsBytes(bytes);
+        }
+      }
 
       if (savedPath != null) {
         messenger.showSnackBar(SnackBar(content: Text('JSON saved to: $savedPath')));
@@ -472,42 +712,105 @@ class _DataManagementTabState extends State<DataManagementTab> {
     final bool isSignedIn = _currentUser != null;
     final String buttonText = isSignedIn ? 'Sign Out Google (${_currentUser!.displayName ?? 'User'})' : 'Sign In with Google';
     final VoidCallback onPressed = isSignedIn ? _handleSignOut : _handleSignIn;
+    
+    // Platform availability check
+    final bool driveAvailable = PlatformHelper.isMobile;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ElevatedButton.icon(
-            onPressed: onPressed,
-            icon: isSignedIn ? const Icon(Icons.logout) : const Icon(Icons.login),
-            label: Text(buttonText),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(t(context, 'sync_google_drive')),
-              Tooltip(
-                message: isSignedIn ? '' : 'Sign in with Google to enable sync',
-                child: Switch(
-                  value: _syncEnabled,
-                  onChanged: isSignedIn ? _toggleSync : null,
+          // Platform notification banner
+          if (!driveAvailable)
+            Card(
+              color: Colors.blue.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(Icons.cloud, color: Colors.blue.shade900),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Desktop: Use manual Google Drive sync below.\n'
+                        'You can also use JSON export/import for offline backups.',
+                        style: TextStyle(color: Colors.blue.shade900),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
+            ),
+          if (!driveAvailable) const SizedBox(height: 16),
+          
+          // Desktop manual Drive sync buttons
+          if (!driveAvailable)
+            ElevatedButton.icon(
+              onPressed: _desktopUploadToDrive,
+              icon: const Icon(Icons.cloud_upload),
+              label: const Text('Upload to Google Drive (Manual)'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade700,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          if (!driveAvailable) const SizedBox(height: 12),
+          if (!driveAvailable)
+            ElevatedButton.icon(
+              onPressed: _desktopFetchFromDrive,
+              icon: const Icon(Icons.cloud_download),
+              label: const Text('Import from Google Drive'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade700,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          if (!driveAvailable) const SizedBox(height: 16),
+          
+          // Divider
+          if (!driveAvailable) const Divider(),
+          if (!driveAvailable) const SizedBox(height: 8),
+          
+          // Google Sign-In button (only show on mobile)
+          if (driveAvailable)
+            ElevatedButton.icon(
+              onPressed: onPressed,
+              icon: isSignedIn ? const Icon(Icons.logout) : const Icon(Icons.login),
+              label: Text(buttonText),
+            ),
+          if (driveAvailable) const SizedBox(height: 16),
+          
+          // Sync toggle (only show on mobile)
+          if (driveAvailable)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(t(context, 'sync_google_drive')),
+                Tooltip(
+                  message: isSignedIn ? '' : 'Sign in with Google to enable sync',
+                  child: Switch(
+                    value: _syncEnabled,
+                    onChanged: isSignedIn ? _toggleSync : null,
+                  ),
+                ),
+              ],
+            ),
+          if (driveAvailable) const SizedBox(height: 16),
+          
           ElevatedButton(onPressed: _exportJson, child: Text(t(context, 'export_json'))),
           const SizedBox(height: 16),
           ElevatedButton(onPressed: _importJson, child: Text(t(context, 'import_json'))),
           const SizedBox(height: 16),
-          if (isSignedIn)
+          
+          // Fetch from Google (only show when signed in on mobile)
+          if (isSignedIn && driveAvailable)
             ElevatedButton(
               onPressed: _fetchFromGoogle,
               child: Text(t(context, 'googlefetch')),
             ),
-          const SizedBox(height: 16),
+          if (isSignedIn && driveAvailable) const SizedBox(height: 16),
+          
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: _clearAllEntries,

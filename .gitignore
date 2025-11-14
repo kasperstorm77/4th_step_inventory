@@ -10,6 +10,9 @@
 .svn/
 migrate_working_dir/
 
+# OAuth Credentials - DO NOT COMMIT
+lib/services/google_drive/desktop_oauth_config.dart
+
 # IntelliJ related
 *.iml
 *.ipr

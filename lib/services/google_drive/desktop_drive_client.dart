@@ -1,66 +1,52 @@
 // --------------------------------------------------------------------------
-// GoogleDriveClient - Handles Google Drive API Calls
+// Desktop Drive Client - Windows/macOS/Linux
 // --------------------------------------------------------------------------
 // 
-// PLATFORM SUPPORT: Android and iOS only
-// This file depends on google_sign_in which is only available on mobile platforms.
-// For desktop platforms (Windows/macOS/Linux), alternative authentication methods
-// would be required (e.g., desktop_webview_auth).
+// PLATFORM SUPPORT: Desktop platforms (Windows/macOS/Linux)
+// This client works with any authenticated HTTP client from desktop OAuth.
 // 
-// Usage: Only import and use this file when PlatformHelper.isMobile returns true.
+// Usage: Only import and use when PlatformHelper.isDesktop returns true.
 // --------------------------------------------------------------------------
 
 import 'dart:async';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as gApi;
-import 'package:googleapis_auth/googleapis_auth.dart' as gAuth;
 import 'package:http/http.dart' as http;
 
-// --------------------------------------------------------------------------
-// Drive Constants
-// --------------------------------------------------------------------------
+// Drive Constants (same as mobile)
 const fileName = 'aa4step_inventory_data.json';
 const fileMime = 'application/json';
-
-// AppDataFolder scope
 const String driveAppDataScope = 'https://www.googleapis.com/auth/drive.appdata';
 
-// --------------------------------------------------------------------------
-// GoogleDriveClient - Handles API Calls
-// --------------------------------------------------------------------------
-
-class GoogleDriveClient {
+/// Desktop Google Drive client
+/// Works with authenticated HTTP client from desktop_webview_auth
+class DesktopDriveClient {
   late gApi.DriveApi _driveApi;
 
-  GoogleDriveClient._create(this._driveApi);
+  DesktopDriveClient._create(this._driveApi);
 
-  static Future<GoogleDriveClient> create(
-    GoogleSignInAccount googleAccount,
-    String accessToken,
-  ) async {
-    final authClient = gAuth.authenticatedClient(
-      http.Client(),
-      gAuth.AccessCredentials(
-        gAuth.AccessToken('Bearer', accessToken,
-            DateTime.now().toUtc().add(const Duration(minutes: 59))),
-        null,
-        [driveAppDataScope],
-      ),
-    );
-
+  /// Create a Drive client from an authenticated HTTP client
+  /// The client comes from desktop_webview_auth (desktop platforms)
+  static DesktopDriveClient createFromAuthClient(http.Client authClient) {
     final driveApi = gApi.DriveApi(authClient);
-    return GoogleDriveClient._create(driveApi);
+    return DesktopDriveClient._create(driveApi);
   }
 
   Future<String?> _getFileId() async {
-    final result = await _driveApi.files.list(q: "name='$fileName' and trashed=false", spaces: 'appDataFolder');
+    final result = await _driveApi.files.list(
+      q: "name='$fileName' and trashed=false",
+      spaces: 'appDataFolder',
+    );
     final files = result.files;
     if (files != null && files.isNotEmpty) return files.first.id;
     return null;
   }
 
   Future<String?> _downloadFileContent(String fileId) async {
-    final media = await _driveApi.files.get(fileId, downloadOptions: gApi.DownloadOptions.fullMedia) as gApi.Media?;
+    final media = await _driveApi.files.get(
+      fileId,
+      downloadOptions: gApi.DownloadOptions.fullMedia,
+    ) as gApi.Media?;
+    
     if (media != null) {
       final bytes = await media.stream.expand((chunk) => chunk).toList();
       return String.fromCharCodes(bytes);
@@ -80,7 +66,11 @@ class GoogleDriveClient {
 
     if (currentFileId != null) {
       try {
-        final updated = await _driveApi.files.update(fileMetadata, currentFileId, uploadMedia: media);
+        final updated = await _driveApi.files.update(
+          fileMetadata,
+          currentFileId,
+          uploadMedia: media,
+        );
         print("Updated file in AppDataFolder: ${updated.id}");
         return updated.id;
       } catch (e) {
@@ -104,6 +94,7 @@ class GoogleDriveClient {
     await _driveApi.files.delete(fileId);
   }
 
+  /// Upload JSON content to Google Drive
   Future<void> uploadFile(String fileContent) async {
     try {
       await _createOrUpdateFile(content: fileContent);
@@ -113,6 +104,7 @@ class GoogleDriveClient {
     }
   }
 
+  /// Download JSON content from Google Drive
   Future<String?> downloadFile() async {
     try {
       final fileId = await _getFileId();
@@ -125,14 +117,13 @@ class GoogleDriveClient {
     }
   }
 
+  /// Delete file from Google Drive
   Future<void> deleteFile() async {
     try {
       final fileId = await _getFileId();
       if (fileId != null) {
         await _deleteFileOnGoogleDrive(fileId);
-        print("Deleted file from AppDataFolder: $fileId");
-      } else {
-        print("File not found in AppDataFolder, nothing to delete.");
+        print("Deleted file from AppDataFolder");
       }
     } catch (e) {
       print("GoogleDrive deleteFile error: $e");

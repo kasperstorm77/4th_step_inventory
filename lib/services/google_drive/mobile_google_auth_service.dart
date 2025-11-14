@@ -1,20 +1,27 @@
+// --------------------------------------------------------------------------
+// Mobile Google Authentication Service - Android/iOS Only
+// --------------------------------------------------------------------------
+// 
+// PLATFORM SUPPORT: Android and iOS only
+// This service depends on google_sign_in which is only available on mobile platforms.
+// For desktop platforms (Windows/macOS/Linux), use desktop_drive_auth instead.
+// 
+// Usage: Only import and use this service when PlatformHelper.isMobile returns true.
+// --------------------------------------------------------------------------
+
 import 'package:google_sign_in/google_sign_in.dart';
 import 'drive_config.dart';
 import 'drive_crud_client.dart';
 
-// --------------------------------------------------------------------------
-// Google Authentication Service - Reusable
-// --------------------------------------------------------------------------
-
-/// Handles Google Sign-In authentication for Drive access
-class GoogleAuthService {
+/// Handles Google Sign-In authentication for Drive access on mobile platforms
+class MobileGoogleAuthService {
   final GoogleSignIn _googleSignIn;
   final GoogleDriveConfig _config;
   
   GoogleSignInAccount? _currentUser;
   String? _accessToken;
 
-  GoogleAuthService({required GoogleDriveConfig config})
+  MobileGoogleAuthService({required GoogleDriveConfig config})
       : _config = config,
         _googleSignIn = GoogleSignIn(scopes: [config.scope]);
 

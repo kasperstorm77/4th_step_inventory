@@ -1,0 +1,18 @@
+// --------------------------------------------------------------------------
+// Desktop OAuth Configuration Template
+// --------------------------------------------------------------------------
+// 
+// INSTRUCTIONS:
+// 1. Copy this file to: desktop_oauth_config.dart (same directory)
+// 2. Replace YOUR_CLIENT_ID and YOUR_CLIENT_SECRET with your actual credentials
+// 3. desktop_oauth_config.dart is in .gitignore and won't be committed
+// 
+// Get credentials from: https://console.cloud.google.com/apis/credentials
+// Application type: Desktop app
+// --------------------------------------------------------------------------
+
+/// Desktop OAuth Client ID
+const String desktopOAuthClientId = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+
+/// Desktop OAuth Client Secret
+const String desktopOAuthClientSecret = 'YOUR_CLIENT_SECRET';

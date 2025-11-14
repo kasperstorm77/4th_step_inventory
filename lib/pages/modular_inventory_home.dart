@@ -9,6 +9,7 @@ import '../localizations.dart';
 import '../services/drive_service.dart';
 import '../services/inventory_service.dart';
 import '../services/app_version_service.dart';
+import '../utils/platform_helper.dart';
 import 'data_management_page.dart';
 
 class ModularInventoryHome extends StatefulWidget {
@@ -119,6 +120,10 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
   }
 
   Future<void> _checkForNewInstallOrUpdate() async {
+    // Only check for Google fetch on mobile platforms
+    // Desktop uses manual Drive sync buttons instead
+    if (!PlatformHelper.isMobile) return;
+    
     // Give some time for the app to fully initialize and for Google Sign-In to complete
     await Future.delayed(const Duration(milliseconds: 1500));
     

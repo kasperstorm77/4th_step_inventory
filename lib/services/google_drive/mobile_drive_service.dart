@@ -2,16 +2,16 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'drive_config.dart';
 import 'drive_crud_client.dart';
-import 'google_auth_service.dart';
+import 'mobile_google_auth_service.dart';
 
 // --------------------------------------------------------------------------
-// Generic Google Drive Service - Reusable Business Logic
+// Mobile Google Drive Service - Android/iOS Only
 // --------------------------------------------------------------------------
 
-/// High-level Google Drive service with business logic
-/// Generic and reusable across different projects
-class GoogleDriveService {
-  final GoogleAuthService _authService;
+/// High-level Google Drive service for mobile platforms (Android/iOS)
+/// Uses GoogleSignIn for authentication
+class MobileDriveService {
+  final MobileGoogleAuthService _authService;
   
   GoogleDriveCrudClient? _driveClient;
   bool _syncEnabled;
@@ -26,18 +26,18 @@ class GoogleDriveService {
   final StreamController<String> _downloadController = StreamController.broadcast();
   final StreamController<String> _errorController = StreamController.broadcast();
 
-  GoogleDriveService({
+  MobileDriveService({
     required GoogleDriveConfig config,
     bool syncEnabled = false,
     Duration uploadDelay = const Duration(milliseconds: 700),
   })  : _syncEnabled = syncEnabled,
         _uploadDelay = uploadDelay,
-        _authService = GoogleAuthService(config: config);
+        _authService = MobileGoogleAuthService(config: config);
 
   // Getters
   bool get syncEnabled => _syncEnabled;
   bool get isAuthenticated => _authService.isSignedIn;
-  GoogleAuthService get authService => _authService;
+  MobileGoogleAuthService get authService => _authService;
   
   // Streams
   Stream<bool> get onSyncStateChanged => _syncStateController.stream;
