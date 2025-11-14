@@ -13,6 +13,18 @@ migrate_working_dir/
 # OAuth Credentials - DO NOT COMMIT
 lib/services/google_drive/desktop_oauth_config.dart
 
+# Local setup instructions with secrets
+LOCAL_SETUP.md
+
+# Android signing - DO NOT COMMIT
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+android/*.jks
+android/*.keystore
+*.jks
+*.keystore
+
 # IntelliJ related
 *.iml
 *.ipr
