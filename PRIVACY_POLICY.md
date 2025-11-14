@@ -1,11 +1,11 @@
-# Privacy Policy for AA 4Step Inventory
+# Privacy Policy for the 12 steps app
 
-**Effective Date**: October 13, 2025  
-**Last Updated**: October 13, 2025
+**Effective Date**: October 13th 2025  
+**Last Updated**: November 14th 2025
 
 ## About This App
 
-AA 4Step Inventory is a personal inventory management app designed for the AA (Alcoholics Anonymous) 4th Step process. This app helps users track and manage their personal inventory entries locally on their device with optional cloud backup functionality.
+the 12 steps app is a personal inventory management app designed for the AA (Alcoholics Anonymous) 4th Step process, soon to be extended. This app helps users track and manage their personal inventory entries locally on their device with optional cloud backup functionality.
 
 ## Information We Collect
 
