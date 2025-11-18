@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import '../models/inventory_entry.dart';
-import '../services/drive_service.dart';
-import '../services/inventory_service.dart';
-import '../services/locale_provider.dart';
-import '../pages/modular_inventory_home.dart';
+import '../fourth_step/models/inventory_entry.dart';
+import '../fourth_step/services/drive_service.dart';
+import '../fourth_step/services/inventory_service.dart';
+import '../shared/services/locale_provider.dart';
+import '../fourth_step/pages/fourth_step_home.dart' show ModularInventoryHome;
 
 class AppModule extends Module {
   @override
