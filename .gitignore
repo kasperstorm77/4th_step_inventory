@@ -15,6 +15,7 @@ lib/services/google_drive/desktop_oauth_config.dart
 
 # Local setup instructions with secrets and keystores - DO NOT COMMIT
 LOCAL_SETUP.md
+flutter_install.ipynb
 no_sync/
 
 # Android signing - DO NOT COMMIT
