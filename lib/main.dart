@@ -72,7 +72,16 @@ void main() async {
     await Hive.openBox<ReflectionEntry>('reflections_box');
   } catch (e) {
     if (kDebugMode) print('Error opening reflections_box: $e');
-    await Hive.deleteBoxFromDisk('reflections_box');
+    // The data model changed significantly - clear and recreate
+    try {
+      await Hive.deleteBoxFromDisk('reflections_box');
+    } catch (deleteError) {
+      if (kDebugMode) print('Error deleting reflections_box: $deleteError (this is okay)');
+      // If we can't delete, try closing and reopening
+      try {
+        await Hive.close();
+      } catch (_) {}
+    }
     await Hive.openBox<ReflectionEntry>('reflections_box');
     if (kDebugMode) print('Cleared corrupted reflections_box and created new one');
   }

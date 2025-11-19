@@ -105,6 +105,10 @@ final Map<String, Map<String, String>> localizedValues = {
     'delete_reflection_confirm': 'Delete this reflection?',
     'reflection_deleted': 'Reflection deleted',
     'select_reflection_type': 'Select reflection type',
+    'past_date_read_only': 'This date is in the past and cannot be edited. Only today\'s entry can be modified.',
+    'delete_day': 'Delete All Reflections',
+    'confirm_delete_day': 'Delete all {count} reflections for {date}?',
+    'day_deleted': 'All reflections deleted',
   },
   'da': {
     'app_title': '4. Trins Inventory',
@@ -210,6 +214,10 @@ final Map<String, Map<String, String>> localizedValues = {
     'delete_reflection_confirm': 'Slet denne refleksion?',
     'reflection_deleted': 'Refleksion slettet',
     'select_reflection_type': 'Vælg refleksionstype',
+    'past_date_read_only': 'Denne dato er i fortiden og kan ikke redigeres. Kun dagens indtastning kan ændres.',
+    'delete_day': 'Slet Alle Refleksioner',
+    'confirm_delete_day': 'Slet alle {count} refleksioner for {date}?',
+    'day_deleted': 'Alle refleksioner slettet',
   },
 };
 

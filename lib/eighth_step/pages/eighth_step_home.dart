@@ -9,6 +9,7 @@ import '../../shared/models/app_entry.dart';
 import '../../shared/pages/data_management_page.dart';
 import '../../shared/services/locale_provider.dart';
 import 'eighth_step_view_person_tab.dart';
+import 'eighth_step_settings_tab.dart' as settings;
 
 class EighthStepHome extends StatefulWidget {
   final VoidCallback? onAppSwitched;
@@ -27,6 +28,9 @@ class _EighthStepHomeState extends State<EighthStepHome> with SingleTickerProvid
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      setState(() {}); // Rebuild to show/hide FAB based on tab
+    });
   }
 
   @override
@@ -158,6 +162,28 @@ class _EighthStepHomeState extends State<EighthStepHome> with SingleTickerProvid
             onBackToList: () => _tabController.animateTo(0),
           ),
         ],
+      ),
+      floatingActionButton: _tabController.index == 0
+          ? FloatingActionButton(
+              onPressed: () => _showAddPersonDialog(context),
+              child: const Icon(Icons.add),
+            )
+          : null,
+    );
+  }
+
+  void _showAddPersonDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => settings.PersonEditDialog(
+        onSave: (name, amends, column, amendsDone) {
+          final newPerson = Person.create(
+            name: name,
+            amends: amends,
+            column: column,
+          );
+          PersonService.addPerson(newPerson);
+        },
       ),
     );
   }
