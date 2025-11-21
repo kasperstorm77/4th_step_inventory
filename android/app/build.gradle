@@ -1,0 +1,96 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {
+    throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+android {
+    namespace "dk.stormstyrken.twelvestepsapp"
+    compileSdk flutter.compileSdkVersion
+    ndkVersion flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        applicationId "dk.stormstyrken.twelvestepsapp"
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion flutter.targetSdkVersion
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+// Copy google-services.json based on build type
+tasks.register("copyGoogleServices") {
+    doLast {
+        def isRelease = gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }
+        def filename = isRelease ? "google-services_release.json" : "google-services_debug.json"
+        
+        // project.rootDir is 'android', so parent is project root
+        def source = new File(project.rootDir.parent, filename)
+        def dest = new File(project.projectDir, "google-services.json")
+        
+        if (source.exists()) {
+            println("Copying $filename to $dest")
+            dest.text = source.text
+        } else {
+            println("Warning: $filename not found at $source")
+        }
+    }
+}
+
+// Ensure copy happens before build
+tasks.matching { it.name.toLowerCase().contains("process") }.configureEach {
+    dependsOn("copyGoogleServices")
+}
+
+tasks.matching { it.name == "preBuild" }.configureEach {
+    dependsOn("copyGoogleServices")
+}
+
+dependencies {
+}
