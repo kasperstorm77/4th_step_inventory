@@ -113,7 +113,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
     if (!Hive.isBoxOpen('settings')) await Hive.openBox('settings');
     final settingsBox = Hive.box('settings');
     setState(() {
-      _syncEnabled = settingsBox.get('syncEnabled', defaultValue: false);
+      _syncEnabled = settingsBox.get('syncEnabled', defaultValue: true);
     });
   }
 
@@ -192,7 +192,11 @@ class _DataManagementTabState extends State<DataManagementTab> {
         // Manually update the current user since we blocked the listener
         setState(() {
           _currentUser = account;
+          // Auto-enable sync on successful sign-in
+          _syncEnabled = true;
         });
+        Hive.box('settings').put('syncEnabled', true);
+        
         await _initializeDriveClient(account);
         // Schedule the prompt; this is resilient to the ordering of
         // onCurrentUserChanged vs this handler resuming.

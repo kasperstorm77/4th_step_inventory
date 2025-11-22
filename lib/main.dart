@@ -112,7 +112,9 @@ void main() async {
           
           // set sync flag from settings box
           final settingsBox = Hive.box('settings');
-          final enabled = settingsBox.get('syncEnabled', defaultValue: false) ?? false;
+          // Enable sync by default when Google account is available
+          final enabled = settingsBox.get('syncEnabled', defaultValue: true) ?? true;
+          await settingsBox.put('syncEnabled', enabled); // Save the default
           await DriveService.instance.setSyncEnabled(enabled);
           
           // Enable sync for InventoryDriveService too
