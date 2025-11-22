@@ -1,4 +1,5 @@
 //main.dart - Flutter Modular Integration
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -101,7 +102,13 @@ void main() async {
       await InventoryDriveService.instance.initialize();
       
       final scopes = <String>['email', 'https://www.googleapis.com/auth/drive.appdata'];
-      final googleSignIn = GoogleSignIn(scopes: scopes);
+      final googleSignIn = Platform.isIOS
+          ? GoogleSignIn(
+              scopes: scopes,
+              // iOS requires iOS OAuth client for Drive API access
+              serverClientId: '628217349107-2u1kqe686mqd9a2mncfs4hr9sgmq4f9k.apps.googleusercontent.com',
+            )
+          : GoogleSignIn(scopes: scopes); // Android uses default (no serverClientId)
       final account = await googleSignIn.signInSilently();
       if (account != null) {
         final auth = await account.authentication;

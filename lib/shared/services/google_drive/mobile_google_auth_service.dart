@@ -9,6 +9,7 @@
 // Usage: Only import and use this service when PlatformHelper.isMobile returns true.
 // --------------------------------------------------------------------------
 
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'drive_config.dart';
@@ -24,7 +25,13 @@ class MobileGoogleAuthService {
 
   MobileGoogleAuthService({required GoogleDriveConfig config})
       : _config = config,
-        _googleSignIn = GoogleSignIn(scopes: [config.scope]);
+        _googleSignIn = Platform.isIOS
+            ? GoogleSignIn(
+                scopes: [config.scope],
+                // iOS requires iOS OAuth client for Drive API access
+                serverClientId: '628217349107-2u1kqe686mqd9a2mncfs4hr9sgmq4f9k.apps.googleusercontent.com',
+              )
+            : GoogleSignIn(scopes: [config.scope]); // Android uses default (no serverClientId)
 
   /// Current authenticated user
   GoogleSignInAccount? get currentUser => _currentUser;

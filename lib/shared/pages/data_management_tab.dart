@@ -69,7 +69,13 @@ class _DataManagementTabState extends State<DataManagementTab> {
 
     // Initialize GoogleSignIn only on mobile platforms
     if (PlatformHelper.isMobile) {
-      _googleSignIn = GoogleSignIn(scopes: _scopes);
+      _googleSignIn = Platform.isIOS
+          ? GoogleSignIn(
+              scopes: _scopes,
+              // iOS requires iOS OAuth client for Drive API access
+              serverClientId: '628217349107-2u1kqe686mqd9a2mncfs4hr9sgmq4f9k.apps.googleusercontent.com',
+            )
+          : GoogleSignIn(scopes: _scopes); // Android uses default (no serverClientId)
       
       _googleSignIn!.onCurrentUserChanged.listen((account) {
         // Don't update state during an active sign-in to avoid
