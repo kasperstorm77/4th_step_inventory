@@ -2,18 +2,20 @@
 
 ## Project Overview
 
-Multi-app Flutter system for AA recovery tools (4th Step Inventory, 8th Step Amends, Evening Ritual) with shared infrastructure. Uses Hive for local storage, Google Drive for cloud sync, and Flutter Modular for DI/routing.
+Multi-app Flutter system for AA recovery tools (5 apps: 4th Step Inventory, 8th Step Amends, Evening Ritual, Gratitude, Agnosticism) with shared infrastructure. Uses Hive for local storage, Google Drive for cloud sync, and Flutter Modular for DI/routing.
 
 ## Architecture Pattern
 
-**Modular Structure**: Each app lives in its own folder (`lib/fourth_step/`, `lib/eighth_step/`, `lib/evening_ritual/`) with app-specific models, services, pages, and localizations. Shared code in `lib/shared/`.
+**Modular Structure**: Each app lives in its own folder (`lib/fourth_step/`, `lib/eighth_step/`, `lib/evening_ritual/`, `lib/gratitude/`, `lib/agnosticism/`) with app-specific models, services, and pages. Shared code in `lib/shared/`.
 
-**App Switching**: `AppSwitcherService` stores selected app ID in Hive `settings` box. Apps conditionally render based on `AppSwitcherService.isAppSelected(appId)`. See `lib/app/app_widget.dart` for routing logic.
+**App Switching**: `AppSwitcherService` stores selected app ID in Hive `settings` box. `AppRouter` (in `lib/shared/pages/app_router.dart`) switches between apps based on selected ID. Each app has grid icon in AppBar to show app switcher dialog.
 
 **Data Isolation**: Each app has separate Hive boxes:
 - 4th Step: `entries` (Box<InventoryEntry>), `i_am_definitions` (Box<IAmDefinition>)
 - 8th Step: `people_box` (Box<Person>)  
 - Evening Ritual: `reflections_box` (Box<ReflectionEntry>)
+- Gratitude: `gratitude_box` (Box<GratitudeEntry>)
+- Agnosticism: `agnosticism_box` (Box<AgnosticismPaper>)
 
 **Hive Type IDs** (NEVER reuse):
 - `typeId: 0` - InventoryEntry
@@ -23,6 +25,9 @@ Multi-app Flutter system for AA recovery tools (4th Step Inventory, 8th Step Ame
 - `typeId: 4` - ColumnType
 - `typeId: 5` - ReflectionEntry
 - `typeId: 6` - ReflectionType
+- `typeId: 7` - GratitudeEntry
+- `typeId: 8` - AgnosticismPaper
+- `typeId: 9` - PaperStatus
 
 ## Critical Developer Workflows
 
@@ -59,11 +64,26 @@ flutter pub run build_runner build --delete-conflicting-outputs
 
 ## Google Drive Sync Architecture
 
-**Layered Design**:
-- **App Layer**: `InventoryDriveService`, `ReflectionDriveService` (model serialization)
-- **Enhanced Service**: `EnhancedGoogleDriveService` (debouncing, conflict detection, events)
+**Centralized Design**:
+- **All Apps Service**: `AllAppsDriveService` (in `lib/shared/services/all_apps_drive_service.dart`) syncs ALL 5 apps to single Google Drive JSON file
+- **Legacy Wrapper**: `LegacyDriveService` provides backward compatibility
 - **Auth Layer**: `MobileGoogleAuthService` (mobile), `DesktopDriveAuth` (desktop)
 - **CRUD Layer**: `GoogleDriveCrudClient` (pure Drive API operations)
+
+**JSON Format v6.0**: Single file contains all app data:
+```json
+{
+  "version": "6.0",
+  "exportDate": "2025-11-22T...",
+  "lastModified": "2025-11-22T...",
+  "entries": [...],              // 4th step inventory
+  "iAmDefinitions": [...],       // 4th step I Am
+  "people": [...],               // 8th step
+  "reflections": [...],          // Evening ritual
+  "gratitudeEntries": [...],     // Gratitude
+  "agnosticismPapers": [...]     // Agnosticism
+}
+```
 
 **Conflict Detection Pattern**:
 ```dart
@@ -75,17 +95,9 @@ if (remoteTimestamp.isAfter(localTimestamp)) {
 }
 ```
 
-**Debounced Upload**: Schedule uploads with 700ms debounce to coalesce rapid changes. See `scheduleUpload()` in `EnhancedGoogleDriveService`.
+**Debounced Upload**: Schedule uploads with 700ms debounce to coalesce rapid changes. See `scheduleUploadFromBox()` in `AllAppsDriveService`.
 
-**JSON Format**: Always include `version`, `exportDate`, and `lastModified` fields. Example:
-```json
-{
-  "version": "2.0",
-  "exportDate": "2025-11-22T...",
-  "lastModified": "2025-11-22T...",
-  "entries": [...]
-}
-```
+**App Services**: Each app's CRUD service calls `AllAppsDriveService.instance.scheduleUploadFromBox()` after data changes.
 
 ## Localization System
 
@@ -109,7 +121,7 @@ final provider = Modular.get<LocaleProvider>();
 final box = Modular.get<Box<InventoryEntry>>();
 ```
 
-**Routing**: Single route (`/`) points to `AppHomePage` which wraps the currently selected app.
+**Routing**: Single route (`/`) points to `AppHomePage` which renders `AppRouter`. `AppRouter` switches between the 5 app home pages based on `AppSwitcherService.getSelectedAppId()`.
 
 ## Common Patterns
 
@@ -125,21 +137,25 @@ try {
 ```
 
 ### CRUD Operations
-Use app-specific service classes (`InventoryService`, `PersonService`). These automatically trigger Drive sync when enabled:
+Use app-specific service classes (`InventoryService`, `PersonService`, `ReflectionService`, `GratitudeService`, `AgnosticismService`). These automatically trigger Drive sync when enabled:
 ```dart
-await inventoryService.addEntry(box, entry); // Auto-syncs
+await inventoryService.addEntry(box, entry); // Auto-syncs via AllAppsDriveService
 await inventoryService.updateEntry(box, index, entry); // Auto-syncs
 await inventoryService.deleteEntry(box, index); // Auto-syncs
 ```
 
-### Conditional App Rendering
+### App Switching
 ```dart
-final isInventory = AppSwitcherService.is4thStepInventorySelected();
-return isInventory ? FourthStepHome() : EighthStepHome();
+// Get current app ID
+final currentAppId = AppSwitcherService.getSelectedAppId();
+
+// Switch to different app
+await AppSwitcherService.setSelectedAppId(AvailableApps.gratitude);
+widget.onAppSwitched?.call(); // Trigger AppRouter rebuild
 ```
 
 ### App Switcher Dialog
-See `_showAppSwitcher()` in any home page. Lists all apps from `AvailableApps.getAll()`, highlights current selection.
+See `_showAppSwitcher()` in any home page. Lists all 5 apps from `AvailableApps.getAll()`, highlights current selection.
 
 ## Platform-Specific Code
 
@@ -152,25 +168,36 @@ if (PlatformHelper.isMobile) {
 }
 ```
 
-**Desktop OAuth**: Requires `desktop_oauth_config.dart` (not tracked in git). See `docs/GOOGLE_OAUTH_SETUP.md` for setup.
+**Desktop OAuth**: Requires `desktop_oauth_config.dart` in `lib/shared/services/google_drive/` (not tracked in git). See `docs/GOOGLE_OAUTH_SETUP.md` for setup.
 
 ## Key Files Reference
 
 - **App Entry**: `lib/main.dart` (Hive init, silent sign-in, auto-sync)
-- **Routing**: `lib/app/app_module.dart`, `lib/app/app_widget.dart`
-- **4th Step Home**: `lib/fourth_step/pages/fourth_step_home.dart`
-- **Drive Sync**: `lib/shared/services/google_drive/enhanced_google_drive_service.dart`
+- **Routing**: `lib/app/app_module.dart`, `lib/app/app_widget.dart`, `lib/shared/pages/app_router.dart`
+- **Drive Sync**: `lib/shared/services/all_apps_drive_service.dart` (syncs all 5 apps)
 - **App Switching**: `lib/shared/services/app_switcher_service.dart`
-- **Translations**: `lib/shared/localizations.dart`
+- **App Definitions**: `lib/shared/models/app_entry.dart` (AvailableApps class)
+- **Help System**: `lib/shared/services/app_help_service.dart`
+- **Translations**: `lib/shared/localizations.dart` (all apps, EN/DA)
 - **Version Script**: `scripts/increment_version.dart`
+
+**App Home Pages**:
+- 4th Step: `lib/fourth_step/pages/fourth_step_home.dart` (ModularInventoryHome)
+- 8th Step: `lib/eighth_step/pages/eighth_step_home.dart`
+- Evening Ritual: `lib/evening_ritual/pages/evening_ritual_home.dart`
+- Gratitude: `lib/gratitude/pages/gratitude_home.dart`
+- Agnosticism: `lib/agnosticism/pages/agnosticism_home.dart`
 
 ## Documentation
 
 Essential docs in `docs/`:
-- `MODULAR_ARCHITECTURE.md` - Detailed app separation strategy
-- `REUSABLE_COMPONENTS.md` - Modular components for copying to other projects
-- `DATA_SAFETY.md` - Data integrity testing checklist
+- `MODULAR_ARCHITECTURE.md` - Complete 5-app architecture and data flow
 - `BUILD_SCRIPTS.md` - Version management and build automation
+- `GOOGLE_OAUTH_SETUP.md` - OAuth setup for mobile and desktop
+- `VS_CODE_DEBUG.md` - VS Code debugging configuration
+- `PLAY_STORE_DESCRIPTIONS.md` - App store listings
+- `IOS_RELEASE.md` - iOS build and release process
+- `LOCAL_SETUP.md` - Git clone setup instructions (not tracked)
 
 ## Testing Considerations
 
@@ -183,12 +210,14 @@ Before making changes that affect data:
 
 ## Common Pitfalls
 
-❌ **Don't**: Reuse Hive type IDs  
+❌ **Don't**: Reuse Hive type IDs (0-9 are assigned)
 ❌ **Don't**: Delete I Am without checking usage  
 ❌ **Don't**: Import entries before I Am definitions  
 ❌ **Don't**: Skip timestamp comparison in Drive sync  
-❌ **Don't**: Use `flutter test` (no tests yet)  
-✅ **Do**: Use debounced uploads for performance  
+❌ **Don't**: Use `flutter test` (no tests yet)
+❌ **Don't**: Forget to call `onAppSwitched` callback after app switch
+✅ **Do**: Use debounced uploads for performance (700ms)
 ✅ **Do**: Show warnings before data replacement  
 ✅ **Do**: Handle null I Am references gracefully  
-✅ **Do**: Include lastModified in all sync JSON
+✅ **Do**: Include lastModified in all sync JSON (v6.0 format)
+✅ **Do**: Pass `onAppSwitched` callback to all app home pages

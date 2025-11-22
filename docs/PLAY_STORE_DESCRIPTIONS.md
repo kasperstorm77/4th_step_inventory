@@ -1,37 +1,50 @@
-# Play Store Descriptions for AA 4Step Inventory
+# Play Store Descriptions for 12 Steps App
 
 ## Short Description (80 characters max)
-Personal 12 Step app - unofficial, free, made by a sober member of AA
+Personal 12 Step recovery tools - unofficial, free, made by a sober AA member
 
 ## Full Description
 
-**Personal 12 step app - made by a sober member of AA**
+**Personal 12 step recovery tools - made by a sober member of AA**
 
-I created this app for myself to work through AA's 4th Step. This is NOT official AA - just my personal approach to doing a fearless moral inventory. Sharing it freely in case others find it helpful, it has a theatre of the lies flavour, that i personally find valuable, it's optional to use.
+I created this app suite for myself to work through AA's steps and maintain my recovery practice. These are NOT official AA tools - just my personal approach to working the program. Sharing them freely in case others find them helpful.
+
+**Five Recovery Tools:**
+✓ **4th Step Inventory** - Fearless moral inventory with "Theatre of the Lies" flavor
+✓ **8th Step Amends** - List of persons to make amends to
+✓ **Evening Ritual** - Daily 10th step reflection and inventory
+✓ **Gratitude Journal** - Daily gratitude practice
+✓ **My Current Agnosticism** - Step 2 barriers and new conception exercise
 
 **Features:**
-✓ Track 4th step inventory
 ✓ Completely FREE - No ads, subscriptions, or hidden costs
-✓ Privacy-first - Data stays on your device unless you choose Google Drive backup to your personal drive.
-✓ Simple form-based entry for Step 4 work
+✓ Privacy-first - Data stays on your device unless you choose Google Drive backup
+✓ Simple form-based entry for all tools
 ✓ Export/import JSON files
 ✓ English and Danish language support
-✓ Cross-device sync via optional Google Drive (windows application also created)
+✓ Cross-device sync via optional Google Drive
+✓ Switch between tools seamlessly
+✓ Context-sensitive help for each tool
 
 **Important:**
-• UNOFFICIAL tool - not affiliated with AA Worldwide, but hopefully accepted 
-• Created by me as a sober member of AA for myself as a personal project  
-• Always follow your sponsor's guidance for Step 4, this is but a supplement
-• Supplements but doesn't replace traditional methods, follow the guideline of your sponsor and you higher power - and read the manual :) - hint, it's a blue book :)
+• UNOFFICIAL tools - not affiliated with AA Worldwide, but made with respect
+• Created by me as a sober member of AA for my own personal recovery
+• Always follow your sponsor's guidance for step work
+• Supplements but doesn't replace traditional methods, the Big Book, and your sponsor
+• Read the manual (hint: it's a blue book 📘)
 
 **Privacy:**
 • Local storage by default
 • Optional Google Drive uses private app folder
 • No tracking, analytics, or data sharing
 • Full control - export, backup, or delete anytime
+• All 5 tools sync to one encrypted Drive file
 
-I made this because pen-and-paper didn't work well for me. If you prefer digital tools, this might help your Step 4 process. Will always be free - in my opinion, recovery tools should be accessible to all.
+I made this because pen-and-paper didn't work well for me. If you prefer digital tools, these might help your recovery process. Will always be free - in my opinion, recovery tools should be accessible to all.
 
-Your sponsor is your best guide. This is just a tool - the real work happens between you, your higher power, and your sponsor.
+Your sponsor is your best guide. These are just tools - the real work happens between you, your higher power, and your sponsor.
+
+**Theater of the Lies Approach:**
+The 4th Step tool includes an optional "I Am" framework that helps identify false beliefs and character defects. This is my personal take on inventory work - use what helps, discard what doesn't.
 
 *Made with ❤️ by a sober member of AA*
