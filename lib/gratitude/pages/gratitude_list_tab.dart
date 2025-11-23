@@ -202,8 +202,18 @@ class GratitudeListTab extends StatelessWidget {
                       children: [
                         Text(
                           entry.gratitudeTowards,
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
+                        if (entry.gratefulFor.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            entry.gratefulFor,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                        const SizedBox(height: 2),
                         Text(
                           DateFormat.jm().format(entry.createdAt),
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(

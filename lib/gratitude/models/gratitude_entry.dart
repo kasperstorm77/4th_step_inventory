@@ -13,10 +13,14 @@ class GratitudeEntry extends HiveObject {
   @HiveField(2)
   late DateTime createdAt;
 
+  @HiveField(3)
+  late String gratefulFor;
+
   GratitudeEntry({
     required this.date,
     required this.gratitudeTowards,
     required this.createdAt,
+    this.gratefulFor = '',
   });
 
   /// Check if this entry can be edited (only if created today)
@@ -34,6 +38,7 @@ class GratitudeEntry extends HiveObject {
         'date': date.toIso8601String(),
         'gratitudeTowards': gratitudeTowards,
         'createdAt': createdAt.toIso8601String(),
+        'gratefulFor': gratefulFor,
       };
 
   factory GratitudeEntry.fromJson(Map<String, dynamic> json) {
@@ -41,6 +46,7 @@ class GratitudeEntry extends HiveObject {
       date: DateTime.parse(json['date'] as String),
       gratitudeTowards: json['gratitudeTowards'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      gratefulFor: json['gratefulFor'] as String? ?? '',
     );
   }
 }

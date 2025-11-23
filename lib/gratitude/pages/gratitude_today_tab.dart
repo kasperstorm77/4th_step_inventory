@@ -14,17 +14,19 @@ class GratitudeTodayTab extends StatefulWidget {
 
 class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
   final GratitudeService _service = GratitudeService();
-  final TextEditingController _textController = TextEditingController();
+  final TextEditingController _towardsController = TextEditingController();
+  final TextEditingController _forController = TextEditingController();
   GratitudeEntry? _editingEntry;
 
   @override
   void dispose() {
-    _textController.dispose();
+    _towardsController.dispose();
+    _forController.dispose();
     super.dispose();
   }
 
   Future<void> _saveEntry() async {
-    if (_textController.text.trim().isEmpty) return;
+    if (_towardsController.text.trim().isEmpty || _forController.text.trim().isEmpty) return;
 
     final box = Hive.box<GratitudeEntry>('gratitude_box');
     
@@ -34,8 +36,9 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
       if (index >= 0) {
         final updatedEntry = GratitudeEntry(
           date: _editingEntry!.date,
-          gratitudeTowards: _textController.text.trim(),
+          gratitudeTowards: _towardsController.text.trim(),
           createdAt: _editingEntry!.createdAt,
+          gratefulFor: _forController.text.trim(),
         );
         await _service.updateEntry(box, index, updatedEntry);
       }
@@ -43,13 +46,15 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
       // Create new entry
       final entry = GratitudeEntry(
         date: DateTime.now(),
-        gratitudeTowards: _textController.text.trim(),
+        gratitudeTowards: _towardsController.text.trim(),
         createdAt: DateTime.now(),
+        gratefulFor: _forController.text.trim(),
       );
       await _service.addEntry(box, entry);
     }
 
-    _textController.clear();
+    _towardsController.clear();
+    _forController.clear();
     setState(() {
       _editingEntry = null;
     });
@@ -60,7 +65,8 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
     
     setState(() {
       _editingEntry = entry;
-      _textController.text = entry.gratitudeTowards;
+      _towardsController.text = entry.gratitudeTowards;
+      _forController.text = entry.gratefulFor;
     });
   }
 
@@ -96,7 +102,8 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
         if (_editingEntry == entry) {
           setState(() {
             _editingEntry = null;
-            _textController.clear();
+            _towardsController.clear();
+            _forController.clear();
           });
         }
       }
@@ -106,7 +113,8 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
   void _cancelEdit() {
     setState(() {
       _editingEntry = null;
-      _textController.clear();
+      _towardsController.clear();
+      _forController.clear();
     });
   }
 
@@ -129,11 +137,12 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
         // Input form
         Card(
           margin: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                 Text(
                   _editingEntry != null
                       ? t(context, 'gratitude_edit_entry')
@@ -142,26 +151,38 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
                 ),
                 const SizedBox(height: 8),
                 TextField(
-                  controller: _textController,
+                  controller: _towardsController,
                   decoration: InputDecoration(
                     labelText: t(context, 'gratitude_towards_label'),
                     hintText: t(context, 'gratitude_towards_hint'),
                     border: const OutlineInputBorder(),
                   ),
-                  maxLines: 3,
+                  maxLines: 2,
+                  textCapitalization: TextCapitalization.sentences,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _forController,
+                  decoration: InputDecoration(
+                    labelText: t(context, 'gratitude_for_label'),
+                    hintText: t(context, 'gratitude_for_hint'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
                   textCapitalization: TextCapitalization.sentences,
                   onSubmitted: (_) => _saveEntry(),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     if (_editingEntry != null)
                       TextButton(
                         onPressed: _cancelEdit,
                         child: Text(t(context, 'cancel')),
                       ),
-                    const SizedBox(width: 8),
                     ElevatedButton(
                       onPressed: _saveEntry,
                       child: Text(
@@ -176,6 +197,7 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
             ),
           ),
         ),
+      ),
 
         const SizedBox(height: 8),
 
@@ -218,9 +240,20 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
                     child: ListTile(
                       leading: const Icon(Icons.favorite, color: Colors.pink),
                       title: Text(entry.gratitudeTowards),
-                      subtitle: Text(
-                        DateFormat.jm().format(entry.createdAt),
-                        style: Theme.of(context).textTheme.bodySmall,
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (entry.gratefulFor.isNotEmpty)
+                            Text(
+                              entry.gratefulFor,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          const SizedBox(height: 4),
+                          Text(
+                            DateFormat.jm().format(entry.createdAt),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete_outline),

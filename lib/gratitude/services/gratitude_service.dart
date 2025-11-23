@@ -78,6 +78,7 @@ class GratitudeService {
   void _triggerSync() {
     try {
       // Trigger sync using the centralized AllAppsDriveService
+      // Note: Uses entries box as trigger, but syncs all apps
       final entriesBox = Hive.box<InventoryEntry>('entries');
       AllAppsDriveService.instance.scheduleUploadFromBox(entriesBox);
     } catch (e) {
