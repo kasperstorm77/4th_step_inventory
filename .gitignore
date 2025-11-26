@@ -26,6 +26,9 @@ android/*.jks
 android/*.keystore
 *.jks
 *.keystore
+# Keystores in project root
+debug.keystore
+my-release-key.jks
 
 # IntelliJ related
 *.iml
@@ -70,7 +73,10 @@ ios/
 linux/
 macos/
 windows/
+
+# Web build output and generated files (keep only index.html)
 web/
+!web/index.html
 
 # Exclude test directories (uncomment if you want to track tests)
 # test/

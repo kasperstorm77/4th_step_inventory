@@ -9,14 +9,15 @@ import '../../evening_ritual/models/reflection_entry.dart';
 import '../../gratitude/models/gratitude_entry.dart';
 import '../../agnosticism/models/agnosticism_paper.dart';
 import 'google_drive/drive_config.dart';
-import 'google_drive/mobile_drive_service.dart';
+import 'google_drive/mobile_drive_service.dart'
+    if (dart.library.html) 'google_drive/mobile_drive_service_web.dart';
 
 // --------------------------------------------------------------------------
-// All Apps Drive Service - Mobile Only
+// All Apps Drive Service - Platform-Aware Implementation
 // --------------------------------------------------------------------------
 
-/// Google Drive service that syncs all 5 apps (mobile platforms)
-/// Uses the MobileDriveService with multi-app logic
+/// Google Drive service that syncs all 5 apps
+/// Uses platform-specific MobileDriveService (mobile/web stub)
 class AllAppsDriveService {
   static AllAppsDriveService? _instance;
   static AllAppsDriveService get instance {
@@ -351,12 +352,15 @@ class AllAppsDriveService {
         if (iAmDefinitions != null) {
           final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
           await iAmBox.clear();
+          if (kDebugMode) print('AllAppsDriveService: Clearing I Am definitions box...');
           for (final def in iAmDefinitions) {
             final id = def['id'] as String;
             final name = def['name'] as String;
             final reasonToExist = def['reasonToExist'] as String?;
-            await iAmBox.put(id, IAmDefinition(id: id, name: name, reasonToExist: reasonToExist));
+            await iAmBox.add(IAmDefinition(id: id, name: name, reasonToExist: reasonToExist));
+            if (kDebugMode) print('AllAppsDriveService: Added I Am definition: $name (id: $id)');
           }
+          if (kDebugMode) print('AllAppsDriveService: ✓ Imported ${iAmDefinitions.length} I Am definitions');
         }
 
         // Update entries

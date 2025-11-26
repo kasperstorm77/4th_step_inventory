@@ -1,8 +1,11 @@
 // --------------------------------------------------------------------------
-// All Apps Drive Service - Mobile Only (Android/iOS)
+// All Apps Drive Service - Platform-Aware Export
 // --------------------------------------------------------------------------
-// This wrapper exports the mobile implementation.
-// Future: Add conditional exports for web/desktop platforms
+// Exports platform-specific implementation:
+// - Mobile (Android/iOS): Full Drive sync implementation
+// - Web: Stub implementation (Drive sync not supported yet)
+// - Desktop: Uses mobile implementation (with desktop auth)
 // --------------------------------------------------------------------------
 
-export 'all_apps_drive_service_impl.dart';
+export 'all_apps_drive_service_impl.dart'
+    if (dart.library.html) 'all_apps_drive_service_web.dart';

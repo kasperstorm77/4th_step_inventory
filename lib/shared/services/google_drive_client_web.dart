@@ -1,16 +1,15 @@
 // --------------------------------------------------------------------------
-// Desktop Drive Client - Windows/macOS/Linux
+// GoogleDriveClient - Web Implementation
 // --------------------------------------------------------------------------
 // 
-// PLATFORM SUPPORT: Desktop platforms (Windows/macOS/Linux)
-// This client works with any authenticated HTTP client from desktop OAuth.
-// 
-// Usage: Only import and use when PlatformHelper.isDesktop returns true.
+// PLATFORM SUPPORT: Web only
+// Uses OAuth2 token-based authentication for Google Drive API
 // --------------------------------------------------------------------------
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart' as drive_api;
+import 'package:googleapis_auth/googleapis_auth.dart' as auth;
 import 'package:http/http.dart' as http;
 
 // Drive Constants (same as mobile)
@@ -18,18 +17,29 @@ const fileName = 'aa4step_inventory_data.json';
 const fileMime = 'application/json';
 const String driveAppDataScope = 'https://www.googleapis.com/auth/drive.appdata';
 
-/// Desktop Google Drive client
-/// Works with authenticated HTTP client from desktop_webview_auth
-class DesktopDriveClient {
+/// Web implementation - uses OAuth2 token
+class GoogleDriveClient {
   final drive_api.DriveApi _driveApi;
 
-  DesktopDriveClient._create(this._driveApi);
+  GoogleDriveClient._create(this._driveApi);
 
-  /// Create a Drive client from an authenticated HTTP client
-  /// The client comes from desktop_webview_auth (desktop platforms)
-  static DesktopDriveClient createFromAuthClient(http.Client authClient) {
+  /// Create client with access token
+  static Future<GoogleDriveClient> create(
+    dynamic googleAccount, // nullable for web
+    String accessToken,
+  ) async {
+    final authClient = auth.authenticatedClient(
+      http.Client(),
+      auth.AccessCredentials(
+        auth.AccessToken('Bearer', accessToken,
+            DateTime.now().toUtc().add(const Duration(minutes: 59))),
+        null,
+        [driveAppDataScope],
+      ),
+    );
+
     final driveApi = drive_api.DriveApi(authClient);
-    return DesktopDriveClient._create(driveApi);
+    return GoogleDriveClient._create(driveApi);
   }
 
   Future<String?> _getFileId() async {
@@ -80,54 +90,48 @@ class DesktopDriveClient {
     }
 
     try {
-      // Explicitly place file in appDataFolder
       fileMetadata.parents = ['appDataFolder'];
       final created = await _driveApi.files.create(fileMetadata, uploadMedia: media);
       if (kDebugMode) print("Created file in AppDataFolder: ${created.id}");
       return created.id;
     } catch (e) {
-      if (kDebugMode) print('Create in AppDataFolder failed: $e');
-      rethrow;
+      if (kDebugMode) print('Create failed: $e');
+      return null;
     }
   }
 
-  Future<void> _deleteFileOnGoogleDrive(String fileId) async {
-    await _driveApi.files.delete(fileId);
-  }
-
-  /// Upload JSON content to Google Drive
+  /// Upload file to Drive
   Future<void> uploadFile(String fileContent) async {
     try {
       await _createOrUpdateFile(content: fileContent);
     } catch (e) {
-      if (kDebugMode) print("GoogleDrive uploadFile error: $e");
+      if (kDebugMode) print('GoogleDriveClient (web): Upload failed: $e');
       rethrow;
     }
   }
 
-  /// Download JSON content from Google Drive
+  /// Download file from Drive
   Future<String?> downloadFile() async {
     try {
       final fileId = await _getFileId();
-      if (fileId != null) return await _downloadFileContent(fileId);
-      if (kDebugMode) print("File not found in AppDataFolder");
-      return null;
+      if (fileId == null) return null;
+      return await _downloadFileContent(fileId);
     } catch (e) {
-      if (kDebugMode) print("GoogleDrive downloadFile error: $e");
+      if (kDebugMode) print('GoogleDriveClient (web): Download failed: $e');
       rethrow;
     }
   }
 
-  /// Delete file from Google Drive
+  /// Delete file from Drive
   Future<void> deleteFile() async {
     try {
       final fileId = await _getFileId();
       if (fileId != null) {
-        await _deleteFileOnGoogleDrive(fileId);
-        if (kDebugMode) print("Deleted file from AppDataFolder");
+        await _driveApi.files.delete(fileId);
+        if (kDebugMode) print('GoogleDriveClient (web): Deleted file $fileId');
       }
     } catch (e) {
-      if (kDebugMode) print("GoogleDrive deleteFile error: $e");
+      if (kDebugMode) print('GoogleDriveClient (web): Delete failed: $e');
       rethrow;
     }
   }

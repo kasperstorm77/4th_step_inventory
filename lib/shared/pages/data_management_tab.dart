@@ -1,5 +1,6 @@
 ﻿import 'dart:convert';
-import 'dart:io';
+import 'dart:io'
+    if (dart.library.html) '../utils/platform_helper_web.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:file_picker/file_picker.dart';
@@ -12,15 +13,13 @@ import '../localizations.dart';
 import '../utils/platform_helper.dart';
 
 // Platform-specific imports
-// Only import on mobile platforms to avoid compilation errors on desktop
+// Only import on mobile platforms to avoid compilation errors on desktop/web
 import 'package:flutter_file_dialog/flutter_file_dialog.dart' 
     if (dart.library.html) 'package:flutter_file_dialog/flutter_file_dialog.dart' 
     if (dart.library.io) 'package:flutter_file_dialog/flutter_file_dialog.dart';
-import 'package:google_sign_in/google_sign_in.dart'
-    if (dart.library.html) 'package:google_sign_in/google_sign_in.dart'
-    if (dart.library.io) 'package:google_sign_in/google_sign_in.dart';
     
 // Services - conditionally used based on platform
+import '../services/google_sign_in_wrapper.dart';
 import '../services/google_drive_client.dart';
 import '../services/legacy_drive_service.dart';
 
@@ -72,15 +71,20 @@ class _DataManagementTabState extends State<DataManagementTab> {
     super.initState();
     _initSettings();
 
-    // Initialize GoogleSignIn only on mobile platforms
-    if (PlatformHelper.isMobile) {
-      _googleSignIn = Platform.isIOS
+    // Initialize GoogleSignIn on mobile and web platforms
+    if (PlatformHelper.isMobile || PlatformHelper.isWeb) {
+      _googleSignIn = PlatformHelper.isWeb
           ? GoogleSignIn(
+              clientId: '628217349107-5d4fmt92g4pomceuedgsva1263ms9lir.apps.googleusercontent.com',
               scopes: _scopes,
-              // iOS requires iOS OAuth client for Drive API access
-              serverClientId: '628217349107-2u1kqe686mqd9a2mncfs4hr9sgmq4f9k.apps.googleusercontent.com',
-            )
-          : GoogleSignIn(scopes: _scopes); // Android uses default (no serverClientId)
+            ) // Web requires explicit clientId
+          : (Platform.isIOS
+              ? GoogleSignIn(
+                  scopes: _scopes,
+                  // iOS requires iOS OAuth client for Drive API access
+                  serverClientId: '628217349107-2u1kqe686mqd9a2mncfs4hr9sgmq4f9k.apps.googleusercontent.com',
+                )
+              : GoogleSignIn(scopes: _scopes)); // Android uses default (no serverClientId)
       
       _googleSignIn!.onCurrentUserChanged.listen((account) {
         // Don't update state during an active sign-in to avoid
@@ -125,7 +129,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
 
   /// Load available backup restore points from Drive
   Future<void> _loadAvailableBackups() async {
-    if (!PlatformHelper.isMobile || _currentUser == null) return;
+    if ((!PlatformHelper.isMobile && !PlatformHelper.isWeb) || _currentUser == null) return;
     
     setState(() {
       _loadingBackups = true;
@@ -860,8 +864,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
     final String buttonText = isSignedIn ? 'Sign Out Google (${_currentUser!.displayName ?? 'User'})' : 'Sign In with Google';
     final VoidCallback onPressed = isSignedIn ? _handleSignOut : _handleSignIn;
     
-    // Platform availability check
-    final bool driveAvailable = PlatformHelper.isMobile;
+    // Platform availability check - Now includes web with full OAuth2 support
+    final bool driveAvailable = PlatformHelper.isMobile || PlatformHelper.isWeb;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),

@@ -159,13 +159,60 @@ See `_showAppSwitcher()` in any home page. Lists all 5 apps from `AvailableApps.
 
 ## Platform-Specific Code
 
-**Mobile vs Desktop**: Use `PlatformHelper.isMobile` and `PlatformHelper.isDesktop` (see `lib/shared/utils/platform_helper.dart`).
+**Platform Support**: The app targets Android, iOS, Windows, macOS, Linux, and Web.
 
-**Google Sign-In**: Only works on mobile. Wrap in platform check:
+**Platform Detection**: Use `PlatformHelper` (in `lib/shared/utils/platform_helper.dart`):
+- `PlatformHelper.isMobile` - Android or iOS
+- `PlatformHelper.isDesktop` - Windows, macOS, or Linux
+- `PlatformHelper.isWeb` - Web browser
+- `PlatformHelper.isAndroid`, `isIOS`, `isWindows`, `isMacOS`, `isLinux` - Specific platforms
+
+**Google Drive Sync Platform Support**:
+- **Mobile (Android/iOS)**: Full Google Drive sync via `google_sign_in` package
+- **Desktop (Windows/macOS/Linux)**: Full sync using desktop OAuth (see `docs/GOOGLE_OAUTH_SETUP.md`)
+- **Web**: Stub implementation (no-op) - Drive sync NOT supported yet
+  - All Drive methods return null/false/empty on web
+  - Console logs indicate unsupported operations
+  - Future: Implement OAuth2 web flow when needed
+
+**Conditional Exports for Web**:
+All platform-specific services use conditional exports:
 ```dart
+// Example: all_apps_drive_service.dart
+export 'all_apps_drive_service_impl.dart'
+    if (dart.library.html) 'all_apps_drive_service_web.dart';
+```
+
+Web stub files:
+- `lib/shared/services/all_apps_drive_service_web.dart`
+- `lib/shared/services/legacy_drive_service_web.dart`
+- `lib/shared/services/google_drive_client_web.dart`
+- `lib/shared/services/google_drive/mobile_drive_service_web.dart`
+- `lib/shared/services/google_drive/mobile_google_auth_service_web.dart`
+- `lib/shared/utils/platform_helper_web.dart` (provides Platform/File/Directory stubs)
+
+**Platform-Specific Imports**:
+Always use conditional imports for `dart:io` and platform-specific packages:
+```dart
+import 'dart:io' show Platform
+    if (dart.library.html) 'shared/utils/platform_helper_web.dart';
+import 'package:google_sign_in/google_sign_in.dart'
+    if (dart.library.html) 'shared/services/google_drive_client_web.dart';
+```
+
+**Wrapping Platform Code**:
+```dart
+// Good: Wrap Google Sign-In calls
 if (PlatformHelper.isMobile) {
+  final googleSignIn = GoogleSignIn(scopes: scopes);
   await googleSignIn.signIn();
 }
+
+// Good: Initialize services on all platforms (web uses stub)
+await AllAppsDriveService.instance.initialize(); // Works everywhere
+
+// Bad: Don't use Platform checks for services with conditional exports
+// The exports handle platform differences automatically
 ```
 
 **Desktop OAuth**: Requires `desktop_oauth_config.dart` in `lib/shared/services/google_drive/` (not tracked in git). See `docs/GOOGLE_OAUTH_SETUP.md` for setup.

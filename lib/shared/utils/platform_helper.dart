@@ -1,4 +1,5 @@
-import 'dart:io' show Platform;
+import 'dart:io' show Platform
+    if (dart.library.html) 'platform_helper_web.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Simple platform detection helper for conditional code execution.
