@@ -314,10 +314,17 @@ User clicks grid icon → Dialog shows 5 apps → User selects app
 Each app's CRUD service calls `AllAppsDriveService.instance.scheduleUploadFromBox()` after data changes
 
 **Shared Drive Infrastructure** (`lib/shared/services/google_drive/`):
-- **Mobile**: `MobileGoogleAuthService` + `MobileDriveService`
-- **Desktop**: `DesktopDriveAuth` + `DesktopDriveClient`
+- **Mobile**: `MobileGoogleAuthService` + `MobileDriveService` (Android/iOS)
+- **Web**: Same services with web-specific OAuth2 implementation via `google_sign_in` package
+- **Desktop**: `DesktopDriveAuth` + `DesktopDriveClient` (Windows/macOS/Linux)
 - **CRUD**: `DriveCrudClient` (pure Drive API operations)
 - **Enhanced**: `EnhancedGoogleDriveService` (debouncing, events)
+
+**Platform-Specific Implementations:**
+- Conditional exports (`if (dart.library.html)`) route to platform-specific code
+- Web uses OAuth2 flow in browser with client ID in `web/index.html`
+- Mobile uses `google_sign_in` with platform-specific OAuth clients
+- Desktop uses out-of-band OAuth flow with manual auth code entry
 
 ## Benefits of Modular Architecture
 

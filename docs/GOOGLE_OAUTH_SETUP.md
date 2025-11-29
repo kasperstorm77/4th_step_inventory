@@ -1,8 +1,17 @@
-# Google OAuth Setup for Desktop App
+# Google OAuth Setup
 
-## Quick Start Guide
+This document covers OAuth setup for **desktop platforms only** (Windows/macOS/Linux). Mobile (Android/iOS) and Web platforms have OAuth already configured and working.
 
-To enable Google Drive sync on Windows/macOS/Linux, you need to create OAuth credentials in Google Cloud Console.
+## Platform Status
+
+- ✅ **Android**: OAuth configured via SHA-1 fingerprint + package name (no setup needed)
+- ✅ **iOS**: OAuth configured via iOS client ID in code and Info.plist (no setup needed)
+- ✅ **Web**: OAuth configured via web client ID in `web/index.html` (no setup needed)
+- ⚙️ **Desktop**: Requires manual OAuth setup (this document)
+
+## Desktop OAuth Setup (Optional)
+
+Desktop platforms (Windows/macOS/Linux) can use Google Drive sync, but require manual OAuth credential configuration.
 
 ### Step 1: Create OAuth Client ID
 
@@ -25,7 +34,14 @@ You'll get:
 
 ### Step 3: Add Credentials to Your App
 
-Open `lib/services/google_drive/desktop_drive_auth.dart` and replace:
+Copy the template configuration file:
+
+```bash
+cp lib/shared/services/google_drive/desktop_oauth_config.dart.template \
+   lib/shared/services/google_drive/desktop_oauth_config.dart
+```
+
+Open `lib/shared/services/google_drive/desktop_oauth_config.dart` and replace:
 
 ```dart
 static const String _clientId = 'YOUR_DESKTOP_CLIENT_ID.apps.googleusercontent.com';
@@ -38,6 +54,8 @@ With your actual credentials:
 static const String _clientId = '1234567890-abc123def456.apps.googleusercontent.com';
 static const String _clientSecret = 'GOCSPX-abc123def456';
 ```
+
+**Note**: The file `desktop_oauth_config.dart` is gitignored for security. The template is tracked in git for reference.
 
 ### Step 4: Test the Flow
 
@@ -146,12 +164,27 @@ This is the standard serverless OAuth flow for desktop apps:
 1. Set a default web browser in Windows/macOS settings
 2. Or copy the auth URL from console and open manually
 
-## Alternative: JSON Export/Import
+## Mobile & Web Platforms
 
-If you prefer not to set up OAuth, you can still transfer data using JSON files:
+### Android
+- **Already configured** - uses Android OAuth client
+- **Authentication**: SHA-1 fingerprint + package name
+- **No code changes needed** - works out of the box
+- **Setup required**: Register your debug SHA-1 in Google Cloud Console (see `docs/LOCAL_SETUP.md`)
 
-1. **Mobile:** Export JSON → Save to cloud/USB
-2. **Desktop:** Import JSON → Load from cloud/USB
-3. Data transfers seamlessly!
+### iOS
+- **Already configured** - uses iOS OAuth client
+- **Client ID**: `628217349107-2u1kqe686mqd9a2mncfs4hr9sgmq4f9k.apps.googleusercontent.com`
+- **Configured in**: `lib/shared/services/google_drive/mobile_google_auth_service.dart` (serverClientId)
+- **Also in**: `ios/Runner/Info.plist` (GIDClientID and CFBundleURLSchemes)
+- **No code changes needed** - works out of the box
 
-Both approaches use the same JSON v2.0 format and are 100% compatible.
+### Web
+- **Already configured** - uses Web OAuth client
+- **Client ID**: `628217349107-5d4fmt92g4pomceuedgsva1263ms9lir.apps.googleusercontent.com`
+- **Configured in**: `web/index.html` (meta tag: `google-signin-client_id`)
+- **Authentication**: OAuth2 browser flow via `google_sign_in` package
+- **No code changes needed** - works out of the box
+- **Run with**: `flutter run -d chrome`
+
+All three platforms have full Google Drive sync functionality without any setup required (beyond registering your debug SHA-1 for Android development).
