@@ -286,6 +286,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
   // already prompted for this account id.
   if (!(_interactiveSignIn || _interactiveSignInRequested)) return;
   if (_lastPromptedAccountId == account.id) return;
+  if (!mounted) return;
 
     // Attempt to show the dialog. Only mark this account as 'prompted' after
     // the dialog successfully completes so that failures (for example if the
@@ -475,7 +476,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
             final entry = InventoryEntry.fromJson(item);
             await entriesBox.add(entry);
             if (kDebugMode && entry.iAmId != null) {
-              print('Drive restore: Added entry with iAmId: ${entry.iAmId}');
+              debugPrint('Drive restore: Added entry with iAmId: ${entry.iAmId}');
             }
           }
         }
@@ -626,6 +627,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
       }
 
       if (savedPath != null) {
+        if (!mounted) return;
         messenger.showSnackBar(SnackBar(content: Text('${t(context, 'json_saved')}: $savedPath')));
       } else {
         if (!mounted) return;
@@ -634,6 +636,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
 
       // NOTE: Do NOT auto-upload after JSON export - no data changed, just exported
     } catch (e) {
+      if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('${t(context, 'export_failed')}: $e')));
     }
   }
@@ -715,7 +718,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
         final entry = InventoryEntry.fromJson(entryJson as Map<String, dynamic>);
         await entriesBox.add(entry);
         if (kDebugMode && entry.iAmId != null) {
-          print('Import: Added entry with iAmId: ${entry.iAmId}');
+          debugPrint('Import: Added entry with iAmId: ${entry.iAmId}');
         }
       }
       if (kDebugMode) print('Import: Entries box now has ${entriesBox.length} entries');
@@ -762,6 +765,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
         }
       }
 
+      if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
           content: Text(t(context, 'import_success_count')
@@ -775,6 +779,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
 
       if (_syncEnabled && _driveClient != null) _uploadToDrive();
     } catch (e) {
+      if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('${t(context, 'import_failed')}: $e')));
     }
   }
