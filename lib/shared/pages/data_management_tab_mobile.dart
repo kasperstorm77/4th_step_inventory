@@ -275,6 +275,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
       }
     } catch (e) {
       _signingInProgress = false; // Clear flag on error
+      if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('${t(context, 'sign_in_failed')}: ${e.toString().split(',').first}')));
       _interactiveSignIn = false;
       _interactiveSignInRequested = false;

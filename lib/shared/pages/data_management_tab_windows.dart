@@ -374,10 +374,10 @@ class _DataManagementTabState extends State<DataManagementTab> {
         final entry = InventoryEntry.fromJson(entryJson as Map<String, dynamic>);
         await entriesBox.add(entry);
         if (kDebugMode && entry.iAmId != null) {
-          print('Windows import: Added entry with iAmId: ${entry.iAmId}');
+          debugPrint('Windows import: Added entry with iAmId: ${entry.iAmId}');
         }
       }
-      if (kDebugMode) print('Windows import: Entries box now has ${entriesBox.length} entries');
+      if (kDebugMode) debugPrint('Windows import: Entries box now has ${entriesBox.length} entries');
     }
 
     if (data.containsKey('people')) {
@@ -491,7 +491,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
         const SizedBox(height: 16),
         
         ElevatedButton(
-          onPressed: () => _confirmClearAll(context),
+          onPressed: _confirmClearAll,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red,
             foregroundColor: Colors.white,
@@ -502,19 +502,19 @@ class _DataManagementTabState extends State<DataManagementTab> {
     );
   }
 
-  Future<void> _confirmClearAll(BuildContext context) async {
+  Future<void> _confirmClearAll() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(t(context, 'confirm_clear')),
         content: Text(t(context, 'clear_warning')),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(t(context, 'cancel')),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: Text(t(context, 'clear')),
           ),
@@ -522,8 +522,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
       ),
     );
 
-    if (confirmed == true && mounted) {
+    if (confirmed == true) {
       await _clearAllData();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(t(context, 'all_cleared'))),
       );

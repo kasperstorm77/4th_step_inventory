@@ -241,7 +241,7 @@ class WindowsDriveService {
           }
           
           final date = DateTime(year, month, day, hour, minute, second);
-          final displayDate = '${year}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+          final displayDate = '$year-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
           final displayTime = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
           
           backups.add({

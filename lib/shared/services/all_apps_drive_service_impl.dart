@@ -602,10 +602,10 @@ List<InventoryEntry> _parseInventoryJson(String content) {
     if (entries == null) return [];
 
     if (kDebugMode && entries.isNotEmpty) {
-      print('_parseInventoryJson: First entry raw JSON: ${entries.first}');
-      print('_parseInventoryJson: Has iAmId field? ${(entries.first as Map).containsKey('iAmId')}');
+      debugPrint('_parseInventoryJson: First entry raw JSON: ${entries.first}');
+      debugPrint('_parseInventoryJson: Has iAmId field? ${(entries.first as Map).containsKey('iAmId')}');
       if ((entries.first as Map).containsKey('iAmId')) {
-        print('_parseInventoryJson: iAmId value: ${(entries.first as Map)['iAmId']}');
+        debugPrint('_parseInventoryJson: iAmId value: ${(entries.first as Map)['iAmId']}');
       }
     }
 
