@@ -14,7 +14,7 @@ Multi-app Flutter system for AA recovery tools (5 apps: 4th Step Inventory, 8th 
 - ❌ Don't use "quick and dirty" solutions that compromise quality
 
 Examples:
-- Use deep links for OAuth (not local HTTP servers)
+- Use loopback HTTP server for desktop OAuth (Google-required method)
 - Use proper platform-specific implementations (not shared hacks)
 - Implement complete error handling (not minimal try-catch)
 - Write maintainable code (not clever one-liners)
@@ -30,7 +30,7 @@ Examples:
 - 8th Step: `people_box` (Box<Person>)  
 - Evening Ritual: `reflections_box` (Box<ReflectionEntry>)
 - Gratitude: `gratitude_box` (Box<GratitudeEntry>)
-- Agnosticism: `agnosticism_box` (Box<AgnosticismPaper>)
+- Agnosticism: `agnosticism_papers` (Box<AgnosticismPaper>)
 
 **Hive Type IDs** (NEVER reuse):
 - `typeId: 0` - InventoryEntry
@@ -47,13 +47,28 @@ Examples:
 ## Critical Developer Workflows
 
 ### Build & Version Management
-```bash
+```powershell
 # Auto-increment version (1.0.1+36 → 1.0.1+37)
 dart scripts/increment_version.dart
 
-# Build with version increment (VS Code tasks)
-# Run task: "flutter-debug-with-version-increment"
-# Or manually: dart scripts/increment_version.dart && flutter build apk --debug
+# VS Code Tasks (Ctrl+Shift+P → "Tasks: Run Task"):
+# - "increment-version" - Just increment version
+# - "flutter-debug-with-version-increment" - Debug build with version bump
+# - "build-windows-release-zip" - Build Windows release + create ZIP distribution
+```
+
+### Platform Builds
+```powershell
+# Android APK (release)
+flutter build apk --release
+# Output: build/app/outputs/flutter-apk/app-release.apk
+
+# Windows Release + ZIP (recommended)
+.\scripts\build_windows_release.ps1
+# Output: build/releases/twelvestepsapp-windows-{version}.zip
+
+# Windows Debug
+flutter run -d windows
 ```
 
 ### Code Generation (After Model Changes)
@@ -71,7 +86,7 @@ flutter pub run build_runner build --delete-conflicting-outputs
 
 2. **Import Order**: ALWAYS import I Am definitions BEFORE entries to prevent orphaned references. Export follows same order.
 
-3. **Drive Sync Timestamps**: Use `lastModified` field for conflict detection. Compare remote vs local timestamp before syncing. See `lib/shared/services/google_drive/enhanced_google_drive_service.dart`.
+3. **Drive Sync Timestamps**: Use `lastModified` field for conflict detection. Compare remote vs local timestamp before syncing.
 
 4. **Null Safety**: All I Am references are nullable. Show `-` in UI when I Am not found (never crash).
 
@@ -80,10 +95,17 @@ flutter pub run build_runner build --delete-conflicting-outputs
 ## Google Drive Sync Architecture
 
 **Centralized Design**:
-- **All Apps Service**: `AllAppsDriveService` (in `lib/shared/services/all_apps_drive_service.dart`) syncs ALL 5 apps to single Google Drive JSON file
-- **Legacy Wrapper**: `LegacyDriveService` provides backward compatibility
-- **Auth Layer**: `MobileGoogleAuthService` (mobile), `DesktopDriveAuth` (desktop)
+- **All Apps Service**: `AllAppsDriveService` (in `lib/shared/services/all_apps_drive_service_impl.dart`) syncs ALL 5 apps to single Google Drive JSON file
+- **Platform Selection**: Automatically uses `MobileDriveService` or `WindowsDriveServiceWrapper` based on platform
+- **Auth Layer**: 
+  - Mobile: `MobileGoogleAuthService` via `google_sign_in` package
+  - Desktop: `WindowsGoogleAuthService` via loopback HTTP server OAuth
 - **CRUD Layer**: `GoogleDriveCrudClient` (pure Drive API operations)
+
+**Platform-Specific Data Management Tab**:
+- `data_management_tab.dart` - Platform selector wrapper
+- `data_management_tab_mobile.dart` - Android/iOS implementation
+- `data_management_tab_windows.dart` - Windows implementation
 
 **JSON Format v6.0**: Single file contains all app data:
 ```json
@@ -91,36 +113,32 @@ flutter pub run build_runner build --delete-conflicting-outputs
   "version": "6.0",
   "exportDate": "2025-11-22T...",
   "lastModified": "2025-11-22T...",
+  "iAmDefinitions": [...],       // 4th step I Am (imported FIRST)
   "entries": [...],              // 4th step inventory
-  "iAmDefinitions": [...],       // 4th step I Am
   "people": [...],               // 8th step
   "reflections": [...],          // Evening ritual
-  "gratitudeEntries": [...],     // Gratitude
-  "agnosticismPapers": [...]     // Agnosticism
+  "gratitude": [...],            // Gratitude (also accepts 'gratitudeEntries')
+  "agnosticism": [...]           // Agnosticism (also accepts 'agnosticismPapers')
 }
 ```
 
-**Conflict Detection Pattern**:
-```dart
-// On app start: compare timestamps
-final remoteTimestamp = await fetchRemoteTimestamp();
-final localTimestamp = await loadLocalTimestamp();
-if (remoteTimestamp.isAfter(localTimestamp)) {
-  await syncDownFromDrive(); // Remote is newer
-}
-```
+**Auto-Sync on App Start** (in `main.dart`):
+1. Initialize `AllAppsDriveService`
+2. Attempt silent sign-in (cached credentials)
+3. If authenticated, check if remote data is newer
+4. Auto-sync if remote is newer
 
 **Debounced Upload**: Schedule uploads with 700ms debounce to coalesce rapid changes. See `scheduleUploadFromBox()` in `AllAppsDriveService`.
-
-**App Services**: Each app's CRUD service calls `AllAppsDriveService.instance.scheduleUploadFromBox()` after data changes.
 
 ## Localization System
 
 **Translation Function**: `t(context, 'key')` defined in `lib/shared/localizations.dart`. Returns translated string for current locale (en/da).
 
+**Adding New Translations**: Add to BOTH `'en'` and `'da'` maps in `localizations.dart`. Keys must match exactly.
+
 **Locale Management**: `LocaleProvider` (ChangeNotifier) injected via Flutter Modular. Change locale with `localeProvider.changeLocale(Locale('da'))`.
 
-**Language Selector**: PopupMenuButton in AppBar actions. Use `LanguageSelectorButton` pattern from `docs/REUSABLE_COMPONENTS.md`.
+**Language Selector**: PopupMenuButton in AppBar actions.
 
 ## Flutter Modular Patterns
 
@@ -159,6 +177,22 @@ await inventoryService.updateEntry(box, index, entry); // Auto-syncs
 await inventoryService.deleteEntry(box, index); // Auto-syncs
 ```
 
+### ValueListenableBuilder for Reactive UI
+When UI needs to react to multiple Hive boxes, use nested ValueListenableBuilders:
+```dart
+ValueListenableBuilder(
+  valueListenable: entriesBox.listenable(),
+  builder: (context, entriesBox, _) {
+    return ValueListenableBuilder(
+      valueListenable: iAmBox.listenable(),
+      builder: (context, iAmBox, _) {
+        // UI rebuilds when either box changes
+      },
+    );
+  },
+);
+```
+
 ### App Switching
 ```dart
 // Get current app ID
@@ -169,44 +203,45 @@ await AppSwitcherService.setSelectedAppId(AvailableApps.gratitude);
 widget.onAppSwitched?.call(); // Trigger AppRouter rebuild
 ```
 
-### App Switcher Dialog
-See `_showAppSwitcher()` in any home page. Lists all 5 apps from `AvailableApps.getAll()`, highlights current selection.
-
 ## Platform-Specific Code
 
-**Platform Support**: The app targets Android, iOS, Windows, macOS, and Linux. Web is NOT supported.
+**Platform Support**: Android, iOS, Windows. (macOS/Linux possible but not tested. Web NOT supported.)
 
 **Platform Detection**: Use `PlatformHelper` (in `lib/shared/utils/platform_helper.dart`):
 - `PlatformHelper.isMobile` - Android or iOS
 - `PlatformHelper.isDesktop` - Windows, macOS, or Linux
-- `PlatformHelper.isAndroid`, `isIOS`, `isWindows`, `isMacOS`, `isLinux` - Specific platforms
-- `PlatformHelper.isWeb` - Always false (web not supported)
+- `PlatformHelper.isWindows` - Windows specifically
+- `PlatformHelper.isAndroid`, `isIOS`, `isMacOS`, `isLinux` - Specific platforms
 
-**Google Drive Sync Platform Support**:
-- **Mobile (Android/iOS)**: Full Google Drive sync via `google_sign_in` package
-- **Desktop (Windows/macOS/Linux)**: Full sync using desktop OAuth (see `docs/GOOGLE_OAUTH_SETUP.md`)
-- **Web**: NOT SUPPORTED - web platform has been removed from the project
+**Google Drive Sync by Platform**:
+- **Mobile (Android/iOS)**: `google_sign_in` package with native account picker UI
+- **Windows**: Loopback HTTP server OAuth (`http://127.0.0.1:PORT`) - browser opens, user signs in, redirects back to local server
+- **Desktop OAuth Note**: Google deprecated custom URI schemes for desktop apps. MUST use loopback IP method.
 
 **Platform-Specific Imports**:
-No conditional imports needed anymore. All imports are straightforward:
 ```dart
 import 'dart:io' show Platform;
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in/google_sign_in.dart'; // Mobile only
 ```
 
 ## Key Files Reference
 
-- **App Entry**: `lib/main.dart` (Hive init, silent sign-in, auto-sync)
+- **App Entry**: `lib/main.dart` (Hive init, silent sign-in, auto-sync for all platforms)
 - **Routing**: `lib/app/app_module.dart`, `lib/app/app_widget.dart`, `lib/shared/pages/app_router.dart`
-- **Drive Sync**: `lib/shared/services/all_apps_drive_service.dart` (syncs all 5 apps)
+- **Drive Sync**: `lib/shared/services/all_apps_drive_service_impl.dart` (syncs all 5 apps)
+- **Windows OAuth**: `lib/shared/services/google_drive/windows_google_auth_service.dart` (loopback method)
+- **Mobile OAuth**: `lib/shared/services/google_drive/mobile_google_auth_service.dart`
+- **Data Management**: 
+  - `lib/shared/pages/data_management_tab.dart` (platform selector)
+  - `lib/shared/pages/data_management_tab_mobile.dart` (Android/iOS)
+  - `lib/shared/pages/data_management_tab_windows.dart` (Windows)
 - **App Switching**: `lib/shared/services/app_switcher_service.dart`
 - **App Definitions**: `lib/shared/models/app_entry.dart` (AvailableApps class)
-- **Help System**: `lib/shared/services/app_help_service.dart`
 - **Translations**: `lib/shared/localizations.dart` (all apps, EN/DA)
-- **Version Script**: `scripts/increment_version.dart`
+- **Build Scripts**: `scripts/increment_version.dart`, `scripts/build_windows_release.ps1`
 
 **App Home Pages**:
-- 4th Step: `lib/fourth_step/pages/fourth_step_home.dart` (ModularInventoryHome)
+- 4th Step: `lib/fourth_step/pages/fourth_step_home.dart`
 - 8th Step: `lib/eighth_step/pages/eighth_step_home.dart`
 - Evening Ritual: `lib/evening_ritual/pages/evening_ritual_home.dart`
 - Gratitude: `lib/gratitude/pages/gratitude_home.dart`
@@ -217,7 +252,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 Essential docs in `docs/`:
 - `MODULAR_ARCHITECTURE.md` - Complete 5-app architecture and data flow
 - `BUILD_SCRIPTS.md` - Version management and build automation
-- `GOOGLE_OAUTH_SETUP.md` - OAuth setup for mobile and desktop
+- `GOOGLE_OAUTH_SETUP.md` - OAuth setup for mobile and desktop (loopback method)
 - `VS_CODE_DEBUG.md` - VS Code debugging configuration
 - `PLAY_STORE_DESCRIPTIONS.md` - App store listings
 - `IOS_RELEASE.md` - iOS build and release process
@@ -238,10 +273,13 @@ Before making changes that affect data:
 ❌ **Don't**: Delete I Am without checking usage  
 ❌ **Don't**: Import entries before I Am definitions  
 ❌ **Don't**: Skip timestamp comparison in Drive sync  
-❌ **Don't**: Use `flutter test` (no tests yet)
-❌ **Don't**: Forget to call `onAppSwitched` callback after app switch
+❌ **Don't**: Use custom URI schemes for desktop OAuth (Google deprecated them)
+❌ **Don't**: Forget to add translations to BOTH en and da maps
+❌ **Don't**: Forget `mounted` checks before using context after async operations
+✅ **Do**: Use loopback HTTP server for desktop OAuth (`http://127.0.0.1:PORT`)
 ✅ **Do**: Use debounced uploads for performance (700ms)
 ✅ **Do**: Show warnings before data replacement  
 ✅ **Do**: Handle null I Am references gracefully  
 ✅ **Do**: Include lastModified in all sync JSON (v6.0 format)
+✅ **Do**: Use nested ValueListenableBuilder when UI depends on multiple boxes
 ✅ **Do**: Pass `onAppSwitched` callback to all app home pages

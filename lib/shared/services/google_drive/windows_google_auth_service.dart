@@ -7,7 +7,8 @@
 // similar to the mobile google_sign_in experience.
 // 
 // Features:
-// - Deep link OAuth redirect (native Windows URL scheme)
+// - Loopback IP OAuth redirect (required by Google for desktop apps)
+// - Local HTTP server for OAuth callback
 // - Secure credential caching in Hive
 // - Silent sign-in support
 // - Automatic token refresh
@@ -17,18 +18,18 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:googleapis_auth/googleapis_auth.dart' as auth;
 import 'package:http/http.dart' as http;
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:app_links/app_links.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'desktop_oauth_config.dart';
 import 'drive_config.dart';
 import 'drive_crud_client.dart';
 
 /// Windows-specific Google authentication service
-/// Provides automatic OAuth with credential caching
+/// Provides automatic OAuth with credential caching using loopback IP method
 class WindowsGoogleAuthService {
   // OAuth credentials from desktop_oauth_config.dart
   static const String _clientId = desktopOAuthClientId;
@@ -36,14 +37,11 @@ class WindowsGoogleAuthService {
   
   final GoogleDriveConfig _config;
   final Box _credentialsBox;
-  final AppLinks _appLinks = AppLinks();
   
   auth.AccessCredentials? _credentials;
-  StreamSubscription<Uri>? _linkSubscription;
-  Completer<String?>? _authCompleter;
+  HttpServer? _redirectServer;
   
   static const String _credentialsKey = 'windows_google_credentials';
-  static const String _redirectScheme = 'twelvestepsapp';
 
   WindowsGoogleAuthService({
     required GoogleDriveConfig config,
@@ -89,25 +87,21 @@ class WindowsGoogleAuthService {
     return false;
   }
 
-  /// Interactive sign-in with automatic OAuth flow using deep links
+  /// Interactive sign-in with automatic OAuth flow using loopback HTTP server
+  /// Google requires desktop apps to use loopback IP (127.0.0.1) redirect
   Future<bool> signIn() async {
     try {
-      // Set up deep link listener
-      _authCompleter = Completer<String?>();
+      // Start local HTTP server on loopback address
+      _redirectServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final port = _redirectServer!.port;
+      final redirectUri = 'http://127.0.0.1:$port';
       
-      _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
-        if (kDebugMode) print('Deep link received: $uri');
-        
-        if (uri.scheme == _redirectScheme && uri.host == 'auth') {
-          final code = uri.queryParameters['code'];
-          if (code != null && !_authCompleter!.isCompleted) {
-            _authCompleter!.complete(code);
-          }
-        }
-      });
+      if (kDebugMode) print('OAuth callback server started on $redirectUri');
+      
+      // Create completer to wait for the OAuth callback
+      final authCompleter = Completer<String?>();
 
-      // Build OAuth URL with custom scheme redirect
-      final redirectUri = '$_redirectScheme://auth';
+      // Build OAuth URL with loopback redirect
       final authUrl = Uri.https('accounts.google.com', '/o/oauth2/v2/auth', {
         'client_id': _clientId,
         'redirect_uri': redirectUri,
@@ -117,23 +111,65 @@ class WindowsGoogleAuthService {
         'prompt': 'consent', // Force consent to get refresh token
       });
 
+      // Listen for the OAuth callback
+      _redirectServer!.listen((request) async {
+        final uri = request.uri;
+        
+        if (kDebugMode) print('Received callback: ${uri.path}?${uri.query}');
+        
+        // Get authorization code from query params
+        final code = uri.queryParameters['code'];
+        final error = uri.queryParameters['error'];
+        
+        // Ignore requests without code or error (favicon, etc.)
+        if (code == null && error == null) {
+          // Send empty response for non-OAuth requests
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..close();
+          return;
+        }
+        
+        // Send response to browser
+        if (code != null) {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.html
+            ..write(_getSuccessHtml())
+            ..close();
+          
+          if (!authCompleter.isCompleted) {
+            authCompleter.complete(code);
+          }
+        } else {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.html
+            ..write(_getErrorHtml(error ?? 'Unknown error'))
+            ..close();
+          
+          if (!authCompleter.isCompleted) {
+            authCompleter.complete(null);
+          }
+        }
+      });
+
       // Open browser for user to authenticate
       if (await canLaunchUrl(authUrl)) {
         await launchUrl(authUrl, mode: LaunchMode.externalApplication);
       } else {
+        await _stopRedirectServer();
         throw Exception('Could not launch browser');
       }
 
       // Wait for OAuth callback with timeout
-      final code = await _authCompleter!.future.timeout(
+      final code = await authCompleter.future.timeout(
         const Duration(minutes: 5),
         onTimeout: () => null,
       );
 
-      // Clean up listener
-      await _linkSubscription?.cancel();
-      _linkSubscription = null;
-      _authCompleter = null;
+      // Stop the redirect server
+      await _stopRedirectServer();
 
       if (code == null) {
         return false; // Timeout or user cancelled
@@ -149,25 +185,78 @@ class WindowsGoogleAuthService {
       return false;
     } catch (e) {
       if (kDebugMode) print('Interactive sign-in failed: $e');
-      
-      // Clean up on error
-      await _linkSubscription?.cancel();
-      _linkSubscription = null;
-      if (_authCompleter != null && !_authCompleter!.isCompleted) {
-        _authCompleter!.complete(null);
-      }
-      _authCompleter = null;
-      
+      await _stopRedirectServer();
       return false;
     }
+  }
+
+  /// Stop the redirect server if running
+  Future<void> _stopRedirectServer() async {
+    await _redirectServer?.close(force: true);
+    _redirectServer = null;
+  }
+
+  /// HTML response for successful authentication
+  String _getSuccessHtml() {
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sign-in Successful</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+           display: flex; justify-content: center; align-items: center; 
+           height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .container { text-align: center; background: white; padding: 40px 60px; 
+                 border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    h1 { color: #22c55e; margin-bottom: 10px; }
+    p { color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>✓ Sign-in Successful!</h1>
+    <p>You can close this window and return to the app.</p>
+  </div>
+</body>
+</html>
+''';
+  }
+
+  /// HTML response for failed authentication
+  String _getErrorHtml(String error) {
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sign-in Failed</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+           display: flex; justify-content: center; align-items: center; 
+           height: 100vh; margin: 0; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+    .container { text-align: center; background: white; padding: 40px 60px; 
+                 border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    h1 { color: #ef4444; margin-bottom: 10px; }
+    p { color: #666; }
+    code { background: #f3f4f6; padding: 4px 8px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>✗ Sign-in Failed</h1>
+    <p>Error: <code>$error</code></p>
+    <p>Please close this window and try again.</p>
+  </div>
+</body>
+</html>
+''';
   }
 
   /// Sign out and clear cached credentials
   Future<void> signOut() async {
     _credentials = null;
     await _credentialsBox.delete(_credentialsKey);
-    await _linkSubscription?.cancel();
-    _linkSubscription = null;
+    await _stopRedirectServer();
     if (kDebugMode) print('Windows OAuth: Signed out');
   }
 

@@ -125,8 +125,8 @@ void main() async {
 
   // Attempt silent sign-in and initialize Drive client early so CRUD
   // operations can sync without the user opening Settings.
-  // PLATFORM: This only works on Android/iOS where google_sign_in is available
-  if (PlatformHelper.isMobile || PlatformHelper.isWeb) {
+  // PLATFORM: Mobile uses google_sign_in, Desktop uses loopback OAuth with cached credentials
+  if (PlatformHelper.isMobile || PlatformHelper.isWeb || PlatformHelper.isDesktop) {
     try {
       // Initialize AllAppsDriveService (handles platform-specific auth internally)
       await AllAppsDriveService.instance.initialize();
@@ -201,6 +201,33 @@ void main() async {
           }
         } else {
           if (kDebugMode) print('Web: User not authenticated - sign in required in Data Management');
+        }
+      } else if (PlatformHelper.isDesktop) {
+        // Desktop-specific: AllAppsDriveService handles everything via loopback OAuth
+        // Silent sign-in attempts to use cached credentials
+        if (kDebugMode) print('Desktop: Checking authentication status...');
+        if (AllAppsDriveService.instance.isAuthenticated) {
+          if (kDebugMode) print('Desktop: User is authenticated (cached credentials)');
+          final settingsBox = Hive.box('settings');
+          final enabled = settingsBox.get('syncEnabled', defaultValue: true) ?? true;
+          await settingsBox.put('syncEnabled', enabled);
+          await AllAppsDriveService.instance.setSyncEnabled(enabled);
+          
+          if (enabled) {
+            try {
+              if (kDebugMode) print('Checking for remote updates...');
+              final synced = await AllAppsDriveService.instance.checkAndSyncIfNeeded();
+              if (synced) {
+                if (kDebugMode) print('✓ Auto-synced newer data from Google Drive');
+              } else {
+                if (kDebugMode) print('✓ Local data is up to date');
+              }
+            } catch (e) {
+              if (kDebugMode) print('Auto-sync check failed: $e');
+            }
+          }
+        } else {
+          if (kDebugMode) print('Desktop: User not authenticated - sign in required in Data Management');
         }
       }
     } catch (e) {

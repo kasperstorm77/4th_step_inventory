@@ -1,10 +1,31 @@
 ﻿// --------------------------------------------------------------------------
-// Data Management Tab Export
+// Data Management Tab - Platform Selector
 // --------------------------------------------------------------------------
 // 
-// Platform-specific exports:
+// This file provides the DataManagementTab widget that automatically selects
+// the correct implementation based on the current platform:
 // - Mobile (Android/iOS): data_management_tab_mobile.dart
 // - Windows: data_management_tab_windows.dart
 // --------------------------------------------------------------------------
 
-export 'data_management_tab_mobile.dart';
+import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../fourth_step/models/inventory_entry.dart';
+import '../utils/platform_helper.dart';
+import 'data_management_tab_mobile.dart' as mobile;
+import 'data_management_tab_windows.dart' as windows;
+
+class DataManagementTab extends StatelessWidget {
+  final Box<InventoryEntry> box;
+
+  const DataManagementTab({super.key, required this.box});
+
+  @override
+  Widget build(BuildContext context) {
+    if (PlatformHelper.isWindows) {
+      return windows.DataManagementTab(box: box);
+    } else {
+      return mobile.DataManagementTab(box: box);
+    }
+  }
+}

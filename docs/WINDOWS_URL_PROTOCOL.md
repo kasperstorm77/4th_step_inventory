@@ -1,4 +1,12 @@
-# Register Custom URL Protocol for Windows OAuth Deep Links
+# ⚠️ DEPRECATED - Custom URL Protocol No Longer Used
+
+> **Note**: This document is deprecated. As of 2025, the app uses the **Loopback IP Address** method for OAuth instead of custom URL schemes. Google deprecated custom URI schemes for desktop OAuth clients.
+>
+> See `GOOGLE_OAUTH_SETUP.md` for the current OAuth setup instructions.
+
+---
+
+# (Legacy) Register Custom URL Protocol for Windows OAuth Deep Links
 
 After building the Windows app, you need to register the custom URL protocol so Windows can redirect OAuth callbacks to your app.
 

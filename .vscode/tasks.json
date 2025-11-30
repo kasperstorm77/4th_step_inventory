@@ -39,6 +39,26 @@
         "clear": false
       },
       "problemMatcher": []
+    },
+    {
+      "label": "build-windows-release-zip",
+      "type": "shell",
+      "command": "powershell",
+      "args": ["-ExecutionPolicy", "Bypass", "-File", "scripts/build_windows_release.ps1"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "dependsOn": "increment-version",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "problemMatcher": []
     }
   ]
 }
