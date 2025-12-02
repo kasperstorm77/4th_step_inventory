@@ -81,7 +81,7 @@ class EnhancedGoogleDriveService {
       await _createDriveClient();
       // Auto-enable sync if already signed in
       setSyncEnabled(true);
-      debugPrint('EnhancedGoogleDriveService: Auto-sync enabled for existing session');
+      if (kDebugMode) debugPrint('EnhancedGoogleDriveService: Auto-sync enabled for existing session');
     }
     
     // Listen to auth changes
@@ -90,12 +90,12 @@ class EnhancedGoogleDriveService {
         await _createDriveClient();
         // Auto-enable sync when authentication state changes to signed in
         setSyncEnabled(true);
-        debugPrint('EnhancedGoogleDriveService: Auto-sync enabled on auth state change');
+        if (kDebugMode) debugPrint('EnhancedGoogleDriveService: Auto-sync enabled on auth state change');
       } else {
         _driveClient = null;
         // Keep sync disabled when signed out
         setSyncEnabled(false);
-        debugPrint('EnhancedGoogleDriveService: Auto-sync disabled on sign out');
+        if (kDebugMode) debugPrint('EnhancedGoogleDriveService: Auto-sync disabled on sign out');
       }
     });
   }
@@ -107,7 +107,7 @@ class EnhancedGoogleDriveService {
       await _createDriveClient();
       // Auto-enable sync when user signs in
       setSyncEnabled(true);
-      debugPrint('EnhancedGoogleDriveService: Auto-sync enabled after successful sign-in');
+      if (kDebugMode) debugPrint('EnhancedGoogleDriveService: Auto-sync enabled after successful sign-in');
     }
     return success;
   }
