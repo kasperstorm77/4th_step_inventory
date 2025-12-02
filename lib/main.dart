@@ -15,14 +15,12 @@ import 'morning_ritual/models/ritual_item.dart';
 import 'morning_ritual/models/morning_ritual_entry.dart';
 import 'gratitude/models/gratitude_entry.dart';
 import 'agnosticism/models/barrier_power_pair.dart';
-import 'shared/services/legacy_drive_service.dart';
-import 'shared/services/all_apps_drive_service_impl.dart';
+import 'shared/services/all_apps_drive_service.dart';
 import 'fourth_step/services/i_am_service.dart';
 import 'shared/utils/platform_helper.dart';
 
 // Platform-specific imports (only available on mobile - conditional for web)
 import 'shared/services/google_sign_in_wrapper.dart';
-import 'shared/services/google_drive_client.dart';
 
 // Import modular app
 import 'app/app_module.dart';
@@ -158,7 +156,7 @@ void main() async {
       await AllAppsDriveService.instance.initialize();
       
       if (PlatformHelper.isMobile) {
-        // Mobile-specific: Use GoogleSignIn for backward compatibility with legacy DriveService
+        // Mobile-specific: Use GoogleSignIn and pass token to AllAppsDriveService
         final scopes = <String>['email', 'https://www.googleapis.com/auth/drive.appdata'];
         final googleSignIn = Platform.isIOS
             ? GoogleSignIn(
@@ -172,17 +170,13 @@ void main() async {
           final auth = await account.authentication;
           final accessToken = auth.accessToken;
           if (accessToken != null) {
-            final client = await GoogleDriveClient.create(account, accessToken);
-            DriveService.instance.setClient(client);
+            await AllAppsDriveService.instance.setClientFromToken(accessToken);
             
             // set sync flag from settings box
             final settingsBox = Hive.box('settings');
             // Enable sync by default when Google account is available
             final enabled = settingsBox.get('syncEnabled', defaultValue: true) ?? true;
             await settingsBox.put('syncEnabled', enabled); // Save the default
-            await DriveService.instance.setSyncEnabled(enabled);
-            
-            // Enable sync for AllAppsDriveService too
             await AllAppsDriveService.instance.setSyncEnabled(enabled);
             
             // Check if remote data is newer and auto-sync if needed

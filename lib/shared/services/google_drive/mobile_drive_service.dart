@@ -36,7 +36,7 @@ class MobileDriveService {
 
   // Getters
   bool get syncEnabled => _syncEnabled;
-  bool get isAuthenticated => _authService.isSignedIn;
+  bool get isAuthenticated => _authService.isSignedIn || _driveClient != null;
   MobileGoogleAuthService get authService => _authService;
   
   // Streams
@@ -82,6 +82,19 @@ class MobileDriveService {
   void setSyncEnabled(bool enabled) {
     _syncEnabled = enabled;
     _syncStateController.add(enabled);
+  }
+
+  /// Set external client from access token (for when authentication happens outside this service)
+  Future<void> setExternalClientFromToken(String accessToken) async {
+    _driveClient = await GoogleDriveCrudClient.create(
+      accessToken: accessToken,
+      config: _authService.config,
+    );
+  }
+
+  /// Clear the external client (used on sign-out)
+  void clearExternalClient() {
+    _driveClient = null;
   }
 
   /// Upload content to Drive

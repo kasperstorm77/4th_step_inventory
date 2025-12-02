@@ -148,6 +148,25 @@ class AllAppsDriveService {
     await _saveSyncState(enabled);
   }
 
+  /// Set external client from access token (for mobile when auth happens in data management tab)
+  Future<void> setClientFromToken(String accessToken) async {
+    if (!PlatformHelper.isWindows) {
+      await _mobileDriveService?.setExternalClientFromToken(accessToken);
+    }
+  }
+
+  /// Clear the drive client (used on sign-out)
+  void clearClient() {
+    if (!PlatformHelper.isWindows) {
+      _mobileDriveService?.clearExternalClient();
+    }
+  }
+
+  /// Load sync state from settings (alias for backward compatibility)
+  Future<void> loadSyncState() async {
+    await _loadSyncState();
+  }
+
   /// Upload raw content directly
   Future<void> uploadContent(String content) async {
     if (PlatformHelper.isWindows) {

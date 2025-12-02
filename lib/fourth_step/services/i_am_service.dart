@@ -2,7 +2,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../fourth_step/models/i_am_definition.dart';
 import '../../fourth_step/models/inventory_entry.dart';
 import 'package:uuid/uuid.dart';
-import '../../shared/services/legacy_drive_service.dart';
+import '../../shared/services/all_apps_drive_service.dart';
 
 class IAmService {
   static final IAmService _instance = IAmService._internal();
@@ -33,7 +33,7 @@ class IAmService {
     await box.add(definition);
     // Trigger Drive sync by uploading inventory (which includes I Am definitions)
     final entriesBox = await Hive.openBox<InventoryEntry>('entries');
-    DriveService.instance.scheduleUploadFromBox(entriesBox);
+    AllAppsDriveService.instance.scheduleUploadFromBox(entriesBox);
   }
 
   /// Update an existing I Am definition
@@ -41,7 +41,7 @@ class IAmService {
     await box.putAt(index, definition);
     // Trigger Drive sync
     final entriesBox = await Hive.openBox<InventoryEntry>('entries');
-    DriveService.instance.scheduleUploadFromBox(entriesBox);
+    AllAppsDriveService.instance.scheduleUploadFromBox(entriesBox);
   }
 
   /// Delete an I Am definition
@@ -49,7 +49,7 @@ class IAmService {
     await box.deleteAt(index);
     // Trigger Drive sync
     final entriesBox = await Hive.openBox<InventoryEntry>('entries');
-    DriveService.instance.scheduleUploadFromBox(entriesBox);
+    AllAppsDriveService.instance.scheduleUploadFromBox(entriesBox);
   }
 
   /// Get all I Am definitions

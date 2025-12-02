@@ -26,7 +26,6 @@ lib/
 │   │
 │   ├── services/
 │   │   ├── all_apps_drive_service_impl.dart  # Syncs ALL 6 apps to Drive
-│   │   ├── legacy_drive_service.dart         # Backward compatibility wrapper
 │   │   ├── app_switcher_service.dart         # App switching logic
 │   │   ├── app_help_service.dart             # Context-sensitive help
 │   │   ├── locale_provider.dart              # Language management

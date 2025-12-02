@@ -8,7 +8,7 @@ import 'form_tab.dart';
 import 'list_tab.dart';
 import 'settings_tab.dart';
 import '../../shared/localizations.dart';
-import '../../shared/services/legacy_drive_service.dart';
+import '../../shared/services/all_apps_drive_service.dart';
 import '../services/inventory_service.dart';
 import '../../shared/services/app_version_service.dart';
 import '../../shared/services/app_switcher_service.dart';
@@ -30,7 +30,6 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   late final InventoryService _inventoryService;
-  late final DriveService _driveService;
 
   // Text controllers for form
   final _resentmentController = TextEditingController();
@@ -48,9 +47,8 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _inventoryService = InventoryService();
-    _driveService = DriveService.instance;
     
-    _driveService.loadSyncState();
+    AllAppsDriveService.instance.loadSyncState();
     
     // Note: No longer listening to all upload events to avoid showing notifications
     // for background sync. User-initiated actions in Settings show their own notifications.

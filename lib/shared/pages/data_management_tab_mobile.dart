@@ -18,8 +18,7 @@ import 'package:flutter_file_dialog/flutter_file_dialog.dart';
     
 // Services
 import '../services/google_sign_in_wrapper.dart';
-import '../services/google_drive_client.dart';
-import '../services/legacy_drive_service.dart';
+import '../services/all_apps_drive_service.dart';
 
 // Google Drive scopes
 const String driveAppdataScope =
@@ -42,7 +41,6 @@ class _DataManagementTabState extends State<DataManagementTab> {
   // Platform-specific: GoogleSignIn only available on mobile (Android/iOS)
   GoogleSignIn? _googleSignIn;
   GoogleSignInAccount? _currentUser;
-  GoogleDriveClient? _driveClient;
 
   bool _syncEnabled = false;
   bool _interactiveSignIn = false;
@@ -101,7 +99,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
           if (_currentUser == null) {
             _syncEnabled = false;
             Hive.box('settings').put('syncEnabled', false);
-            _driveClient = null;
+            AllAppsDriveService.instance.clearClient();
             // Clear backups when signed out
             _availableBackups = [];
             _selectedBackupFileName = null;
@@ -149,7 +147,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
     });
 
     try {
-      final backups = await DriveService.instance.listAvailableBackups();
+      final backups = await AllAppsDriveService.instance.listAvailableBackups();
       
       if (mounted) {
         setState(() {
@@ -191,10 +189,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
     final settingsBox = Hive.box('settings');
     settingsBox.put('syncEnabled', value);
     setState(() => _syncEnabled = value);
-    // Update the shared DriveService flag so other parts of the app (like
-    // InventoryHome) will respect the new state immediately. Await to
-    // avoid races between toggling and immediate uploads.
-    await DriveService.instance.setSyncEnabled(value);
+    // Update the sync state so other parts of the app will respect it.
+    await AllAppsDriveService.instance.setSyncEnabled(value);
     if (value) await _uploadToDrive();
   }
 
@@ -215,14 +211,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
         return;
       }
 
-  _driveClient = await GoogleDriveClient.create(account, accessToken);
-      // Wire the created client into the shared DriveService so other parts
-      // of the app (e.g. InventoryHome._syncDrive) will use the same client.
-      DriveService.instance.setClient(_driveClient!);
-
-      // Ensure DriveService has the current sync state (in case toggle
-      // happened while client wasn't set).
-      await DriveService.instance.setSyncEnabled(_syncEnabled);
+      // Set up AllAppsDriveService with the access token
+      await AllAppsDriveService.instance.setClientFromToken(accessToken);
+      await AllAppsDriveService.instance.setSyncEnabled(_syncEnabled);
 
       // NOTE: Do NOT auto-upload here. Uploads should only happen:
       // 1. When user explicitly turns sync toggle ON
@@ -350,7 +341,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
           final settingsBox = Hive.box('settings');
           settingsBox.put('syncEnabled', true);
           if (mounted) setState(() => _syncEnabled = true);
-          await DriveService.instance.setSyncEnabled(true);
+          await AllAppsDriveService.instance.setSyncEnabled(true);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(t(context, 'drive_upload_success').replaceFirst('%s', widget.box.length.toString()))),
@@ -409,10 +400,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
     setState(() {
       _syncEnabled = false;
       Hive.box('settings').put('syncEnabled', false);
-      _driveClient = null;
-      // Clear the shared client so DriveService stops attempting to use it.
-      DriveService.instance.clearClient();
-      DriveService.instance.setSyncEnabled(false);
+      // Clear the client and disable sync
+      AllAppsDriveService.instance.clearClient();
+      AllAppsDriveService.instance.setSyncEnabled(false);
       // Reset interactive sign-in tracking so a subsequent sign-in will
       // re-prompt the user even if it's the same account in this session.
       _interactiveSignIn = false;
@@ -422,11 +412,11 @@ class _DataManagementTabState extends State<DataManagementTab> {
   }
 
   Future<void> _uploadToDrive() async {
-    if (_driveClient == null || !_syncEnabled) return;
+    if (!_syncEnabled || !AllAppsDriveService.instance.isAuthenticated) return;
 
     try {
       // Use the new method that shows UI notification for user-initiated uploads
-      await DriveService.instance.uploadFromBoxWithNotification(widget.box);
+      await AllAppsDriveService.instance.uploadFromBoxWithNotification(widget.box);
     } catch (e) {
       // Upload failed silently
     }
@@ -434,8 +424,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
 
   Future<void> _fetchFromGoogle() async {
     if (kDebugMode) print('_fetchFromGoogle: Starting restore...');
-    if (_driveClient == null) {
-      if (kDebugMode) print('_fetchFromGoogle: Drive client is null, returning');
+    if (!AllAppsDriveService.instance.isAuthenticated) {
+      if (kDebugMode) print('_fetchFromGoogle: Not authenticated, returning');
       return;
     }
     
@@ -444,9 +434,10 @@ class _DataManagementTabState extends State<DataManagementTab> {
     try {
       // Download from selected backup or current file
       if (_selectedBackupFileName != null && _selectedBackupFileName!.isNotEmpty) {
-        content = await DriveService.instance.downloadBackupContent(_selectedBackupFileName!);
+        content = await AllAppsDriveService.instance.downloadBackupContent(_selectedBackupFileName!);
       } else {
-        content = await _driveClient!.downloadFile();
+        // Download current/latest file
+        content = await AllAppsDriveService.instance.downloadBackupContent('');
       }
       
       if (content == null) {
@@ -805,7 +796,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
         ),
       );
 
-      if (_syncEnabled && _driveClient != null) _uploadToDrive();
+      if (_syncEnabled && AllAppsDriveService.instance.isAuthenticated) _uploadToDrive();
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('${t(context, 'import_failed')}: $e')));
@@ -830,7 +821,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
       await widget.box.clear();
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(t(context, 'clear_all'))));
-      if (_syncEnabled && _driveClient != null) _uploadToDrive();
+      if (_syncEnabled && AllAppsDriveService.instance.isAuthenticated) _uploadToDrive();
     }
   }
 
