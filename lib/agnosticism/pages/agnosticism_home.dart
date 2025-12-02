@@ -6,7 +6,7 @@ import '../../shared/services/app_help_service.dart';
 import '../../shared/models/app_entry.dart';
 import '../../shared/pages/data_management_page.dart';
 import '../../shared/services/locale_provider.dart';
-import 'current_paper_tab.dart';
+import 'paper_tab.dart';
 import 'archive_tab.dart';
 
 class AgnosticismHome extends StatefulWidget {
@@ -65,7 +65,6 @@ class _AgnosticismHomeState extends State<AgnosticismHome> with SingleTickerProv
                 color: isSelected ? Theme.of(context).colorScheme.primary : null,
               ),
               title: Text(app.name),
-              subtitle: Text(app.description),
               selected: isSelected,
               onTap: () async {
                 if (app.id != currentAppId) {
@@ -109,12 +108,12 @@ class _AgnosticismHomeState extends State<AgnosticismHome> with SingleTickerProv
         actions: [
           IconButton(
             icon: const Icon(Icons.apps),
-            tooltip: 'Switch App',
+            tooltip: t(context, 'switch_app'),
             onPressed: _showAppSwitcher,
           ),
           IconButton(
             icon: const Icon(Icons.help_outline),
-            tooltip: 'Help',
+            tooltip: t(context, 'help'),
             onPressed: () {
               AppHelpService.showHelpDialog(
                 context,
@@ -138,17 +137,20 @@ class _AgnosticismHomeState extends State<AgnosticismHome> with SingleTickerProv
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            Tab(text: t(context, 'agnosticism_current_tab')),
+            Tab(text: t(context, 'agnosticism_paper_tab')),
             Tab(text: t(context, 'agnosticism_archive_tab')),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: const [
-          CurrentPaperTab(),
-          ArchiveTab(),
-        ],
+      body: SafeArea(
+        top: false,
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            const PaperTab(),
+            ArchiveTab(),
+          ],
+        ),
       ),
     );
   }

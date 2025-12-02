@@ -17,6 +17,7 @@ class EighthStepSettingsTab extends StatelessWidget {
           people.sort((a, b) => a.name.compareTo(b.name));
 
           return ListView.builder(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
             itemCount: people.length,
             itemBuilder: (context, index) {
               final person = people[index];

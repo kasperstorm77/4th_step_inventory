@@ -231,7 +231,7 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
               }
 
               return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                padding: EdgeInsets.fromLTRB(8, 0, 8, MediaQuery.of(context).padding.bottom + 32),
                 itemCount: entries.length,
                 itemBuilder: (context, index) {
                   final entry = entries[index];

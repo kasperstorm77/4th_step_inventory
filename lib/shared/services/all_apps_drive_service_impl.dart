@@ -7,7 +7,7 @@ import '../../fourth_step/models/i_am_definition.dart';
 import '../../eighth_step/models/person.dart';
 import '../../evening_ritual/models/reflection_entry.dart';
 import '../../gratitude/models/gratitude_entry.dart';
-import '../../agnosticism/models/agnosticism_paper.dart';
+import '../../agnosticism/models/barrier_power_pair.dart';
 import 'google_drive/drive_config.dart';
 import 'google_drive/mobile_drive_service.dart';
 import 'google_drive/windows_drive_service_wrapper.dart';
@@ -187,9 +187,9 @@ class AllAppsDriveService {
       final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
       final gratitudeEntries = gratitudeBox.values.map((g) => g.toJson()).toList();
 
-      // Get agnosticism papers
-      final agnosticismBox = Hive.box<AgnosticismPaper>('agnosticism_papers');
-      final agnosticismPapers = agnosticismBox.values.map((p) => p.toJson()).toList();
+      // Get agnosticism barrier/power pairs
+      final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
+      final agnosticismPairs = agnosticismBox.values.map((p) => p.toJson()).toList();
 
       // Prepare complete export data with I Am definitions and people
       final entries = box.values.map((e) => e.toJson()).toList();
@@ -204,7 +204,7 @@ class AllAppsDriveService {
         'people': people, // Add 8th step people
         'reflections': reflections, // Add evening reflections
         'gratitude': gratitudeEntries, // Add gratitude entries
-        'agnosticism': agnosticismPapers, // Add agnosticism papers
+        'agnosticism': agnosticismPairs, // Add agnosticism barrier/power pairs
       };
 
       // Serialize to JSON string
@@ -262,9 +262,9 @@ class AllAppsDriveService {
       final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
       final gratitudeEntries = gratitudeBox.values.map((g) => g.toJson()).toList();
 
-      // Get agnosticism papers
-      final agnosticismBox = Hive.box<AgnosticismPaper>('agnosticism_papers');
-      final agnosticismPapers = agnosticismBox.values.map((p) => p.toJson()).toList();
+      // Get agnosticism barrier/power pairs
+      final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
+      final agnosticismPairs = agnosticismBox.values.map((p) => p.toJson()).toList();
 
       // Prepare complete export data with I Am definitions and people
       final entries = box.values.map((e) => e.toJson()).toList();
@@ -279,7 +279,7 @@ class AllAppsDriveService {
         'people': people, // Add 8th step people
         'reflections': reflections, // Add evening reflections
         'gratitude': gratitudeEntries, // Add gratitude entries
-        'agnosticism': agnosticismPapers, // Add agnosticism papers
+        'agnosticism': agnosticismPairs, // Add agnosticism barrier/power pairs
       };
 
       // Serialize to JSON string
@@ -537,13 +537,13 @@ class AllAppsDriveService {
           }
         }
 
-        // Update agnosticism papers (if present in remote data)
+        // Update agnosticism barrier/power pairs (if present in remote data)
         if (agnosticismData != null) {
-          final agnosticismBox = Hive.box<AgnosticismPaper>('agnosticism_papers');
+          final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
           await agnosticismBox.clear();
-          for (final paperJson in agnosticismData) {
-            final paper = AgnosticismPaper.fromJson(paperJson as Map<String, dynamic>);
-            await agnosticismBox.put(paper.id, paper);
+          for (final pairJson in agnosticismData) {
+            final pair = BarrierPowerPair.fromJson(pairJson as Map<String, dynamic>);
+            await agnosticismBox.put(pair.id, pair);
           }
         }
 

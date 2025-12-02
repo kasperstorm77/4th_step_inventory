@@ -76,7 +76,6 @@ class _EveningRitualHomeState extends State<EveningRitualHome> with SingleTicker
                 color: isSelected ? Theme.of(context).colorScheme.primary : null,
               ),
               title: Text(app.name),
-              subtitle: Text(app.description),
               selected: isSelected,
               onTap: () async {
                 if (app.id != currentAppId) {
@@ -123,13 +122,13 @@ class _EveningRitualHomeState extends State<EveningRitualHome> with SingleTicker
           // App Switcher Icon
           IconButton(
             icon: const Icon(Icons.apps),
-            tooltip: 'Switch App',
+            tooltip: t(context, 'switch_app'),
             onPressed: _showAppSwitcher,
           ),
           // Help Icon
           IconButton(
             icon: const Icon(Icons.help_outline),
-            tooltip: 'Help',
+            tooltip: t(context, 'help'),
             onPressed: () {
               AppHelpService.showHelpDialog(
                 context,
@@ -162,11 +161,13 @@ class _EveningRitualHomeState extends State<EveningRitualHome> with SingleTicker
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // Form Tab with Calendar at top
-          Column(
+      body: SafeArea(
+        top: false,
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            // Form Tab with Calendar at top
+            Column(
             children: [
               Card(
                 margin: const EdgeInsets.all(8.0),
@@ -217,11 +218,12 @@ class _EveningRitualHomeState extends State<EveningRitualHome> with SingleTicker
               ),
             ],
           ),
-          // List Tab
-          EveningRitualListTab(
-            onDateSelected: _onDateSelected,
-          ),
-        ],
+            // List Tab
+            EveningRitualListTab(
+              onDateSelected: _onDateSelected,
+            ),
+          ],
+        ),
       ),
     );
   }

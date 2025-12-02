@@ -24,7 +24,7 @@ import '../../fourth_step/models/i_am_definition.dart';
 import '../../eighth_step/models/person.dart';
 import '../../evening_ritual/models/reflection_entry.dart';
 import '../../gratitude/models/gratitude_entry.dart';
-import '../../agnosticism/models/agnosticism_paper.dart';
+import '../../agnosticism/models/barrier_power_pair.dart';
 import '../localizations.dart';
 import '../services/all_apps_drive_service_impl.dart';
 
@@ -261,7 +261,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
     final peopleBox = Hive.box<Person>('people_box');
     final reflectionsBox = Hive.box<ReflectionEntry>('reflections_box');
     final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
-    final agnosticismBox = Hive.box<AgnosticismPaper>('agnosticism_papers');
+    final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
 
     final now = DateTime.now().toUtc();
     
@@ -348,7 +348,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
     final peopleBox = Hive.box<Person>('people_box');
     final reflectionsBox = Hive.box<ReflectionEntry>('reflections_box');
     final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
-    final agnosticismBox = Hive.box<AgnosticismPaper>('agnosticism_papers');
+    final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
 
     // Import I Am definitions first (matches format from export)
     if (data.containsKey('iAmDefinitions')) {
@@ -410,9 +410,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
     final agnosticismKey = data.containsKey('agnosticism') ? 'agnosticism' : 'agnosticismPapers';
     if (data.containsKey(agnosticismKey)) {
       await agnosticismBox.clear();
-      for (final paperJson in data[agnosticismKey] as List) {
-        final paper = AgnosticismPaper.fromJson(paperJson as Map<String, dynamic>);
-        await agnosticismBox.put(paper.id, paper);
+      for (final pairJson in data[agnosticismKey] as List) {
+        final pair = BarrierPowerPair.fromJson(pairJson as Map<String, dynamic>);
+        await agnosticismBox.put(pair.id, pair);
       }
     }
   }
@@ -430,7 +430,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
         : t(context, 'sign_in_google');
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
       children: [
         // Google Sign-In button
         ElevatedButton.icon(
@@ -453,7 +453,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             Tooltip(
-              message: _isSignedIn ? '' : 'Sign in with Google to enable sync',
+              message: _isSignedIn ? '' : t(context, 'sign_in_to_enable_sync'),
               child: Switch(
                 value: _syncEnabled,
                 onChanged: _isSignedIn ? _toggleSync : null,
@@ -537,6 +537,6 @@ class _DataManagementTabState extends State<DataManagementTab> {
     await Hive.box<Person>('people_box').clear();
     await Hive.box<ReflectionEntry>('reflections_box').clear();
     await Hive.box<GratitudeEntry>('gratitude_box').clear();
-    await Hive.box<AgnosticismPaper>('agnosticism_box').clear();
+    await Hive.box<BarrierPowerPair>('agnosticism_pairs').clear();
   }
 }

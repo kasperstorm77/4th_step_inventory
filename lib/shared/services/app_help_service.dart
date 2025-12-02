@@ -84,12 +84,12 @@ class AppHelpService {
               content: t(context, 'help_agnosticism_purpose'),
             ),
             HelpSection(
-              title: t(context, 'help_agnosticism_side_a_title'),
-              content: t(context, 'help_agnosticism_side_a'),
+              title: t(context, 'help_agnosticism_barriers_title'),
+              content: t(context, 'help_agnosticism_barriers'),
             ),
             HelpSection(
-              title: t(context, 'help_agnosticism_side_b_title'),
-              content: t(context, 'help_agnosticism_side_b'),
+              title: t(context, 'help_agnosticism_powers_title'),
+              content: t(context, 'help_agnosticism_powers'),
             ),
             HelpSection(
               title: t(context, 'help_agnosticism_process_title'),

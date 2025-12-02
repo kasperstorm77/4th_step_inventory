@@ -176,10 +176,9 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
             return ListTile(
               leading: Icon(
                 isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                color: isSelected ? Theme.of(dialogContext).colorScheme.primary : null,
+                color: isSelected ? Theme.of(context).colorScheme.primary : null,
               ),
               title: Text(app.name),
-              subtitle: Text(app.description),
               selected: isSelected,
               onTap: () async {
                 if (app.id != currentAppId) {
@@ -228,13 +227,13 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
           // App Switcher Icon
           IconButton(
             icon: const Icon(Icons.apps),
-            tooltip: 'Switch App',
+            tooltip: t(context, 'switch_app'),
             onPressed: _showAppSwitcher,
           ),
           // Help Icon
           IconButton(
             icon: const Icon(Icons.help_outline),
-            tooltip: 'Help',
+            tooltip: t(context, 'help'),
             onPressed: () {
               AppHelpService.showHelpDialog(
                 context,
@@ -268,10 +267,12 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          FormTab(
+      body: SafeArea(
+        top: false,
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            FormTab(
             box: Hive.box<InventoryEntry>('entries'),
             resentmentController: _resentmentController,
             reasonController: _reasonController,
@@ -293,8 +294,9 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
             onEdit: _editEntry,
             onDelete: _deleteEntry,
           ),
-          SettingsTab(box: Hive.box<InventoryEntry>('entries')),
-        ],
+            SettingsTab(box: Hive.box<InventoryEntry>('entries')),
+          ],
+        ),
       ),
     );
   }

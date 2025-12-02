@@ -127,6 +127,7 @@ class _ListTabState extends State<ListTab> {
                           ),
                           Expanded(
                             child: SingleChildScrollView(
+                              padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
                               child: Column(
                                 children: List.generate(entries.length, (i) {
                                   final e = entries[i];
@@ -166,6 +167,7 @@ class _ListTabState extends State<ListTab> {
                 }
 
                 return ListView.builder(
+                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
                   itemCount: entries.length,
                   itemBuilder: (context, index) {
                     final e = entries[index];

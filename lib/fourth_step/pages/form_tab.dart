@@ -5,7 +5,7 @@ import '../../fourth_step/models/i_am_definition.dart';
 import '../../fourth_step/services/i_am_service.dart';
 import '../../shared/localizations.dart';
 
-class FormTab extends StatelessWidget {
+class FormTab extends StatefulWidget {
   final Box<InventoryEntry> box;
   final TextEditingController resentmentController;
   final TextEditingController reasonController;
@@ -36,38 +36,46 @@ class FormTab extends StatelessWidget {
   bool get isEditing => editingIndex != null;
 
   @override
+  State<FormTab> createState() => _FormTabState();
+}
+
+class _FormTabState extends State<FormTab> {
+  String? _focusedField;
+
+  @override
   Widget build(BuildContext context) {
     final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
     final iAmService = IAmService();
     // Use the centralized service to find I Am definition
-    final selectedIAm = iAmService.findById(iAmBox, selectedIAmId);
+    final selectedIAm = iAmService.findById(iAmBox, widget.selectedIAmId);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildTextField(context, resentmentController, 'resentment'),
+            _buildTextField(context, widget.resentmentController, 'resentment'),
             
             // I Am + Reason (Cause) section
-            _buildIAmWithReasonField(context, iAmBox, selectedIAm, reasonController),
+            _buildIAmWithReasonField(context, iAmBox, selectedIAm, widget.reasonController),
             
-            _buildTextField(context, affectController, 'affect_my'),
-            _buildTextField(context, partController, 'my_take', showTooltip: true),
-            _buildTextField(context, defectController, 'shortcomings'),
+            _buildTextField(context, widget.affectController, 'affect_my'),
+            _buildTextField(context, widget.partController, 'my_take', showTooltip: true),
+            _buildTextField(context, widget.defectController, 'shortcomings'),
             const SizedBox(height: 20),
             ElevatedButton.icon(
-              icon: Icon(isEditing ? Icons.save : Icons.add),
-              onPressed: onSave,
+              icon: Icon(widget.isEditing ? Icons.save : Icons.add),
+              onPressed: widget.onSave,
               label: Text(
-                isEditing ? t(context, 'save_changes') : t(context, 'add_entry'),
+                widget.isEditing ? t(context, 'save_changes') : t(context, 'add_entry'),
               ),
             ),
-            if (isEditing && onCancel != null)
+            if (widget.isEditing && widget.onCancel != null)
               TextButton.icon(
                 icon: const Icon(Icons.cancel),
-                onPressed: onCancel,
+                onPressed: widget.onCancel,
                 label: Text(t(context, 'cancel_edit')),
               ),
           ],
@@ -78,6 +86,8 @@ class FormTab extends StatelessWidget {
 
   Widget _buildIAmWithReasonField(BuildContext context, Box<IAmDefinition> iAmBox, 
       IAmDefinition? selectedIAm, TextEditingController reasonController) {
+    final isFocused = _focusedField == 'reason';
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -144,27 +154,38 @@ class FormTab extends StatelessWidget {
                     icon: const Icon(Icons.clear, size: 18),
                     tooltip: t(context, 'no_i_am_selected'),
                     visualDensity: VisualDensity.compact,
-                    onPressed: () => onIAmChanged?.call(null),
+                    onPressed: () => widget.onIAmChanged?.call(null),
                   ),
                 ],
               ),
             ),
           
           // Reason field with person icon
-          TextField(
-            controller: reasonController,
-            decoration: InputDecoration(
-              labelText: t(context, 'reason'),
-              border: const OutlineInputBorder(),
-              prefixIcon: IconButton(
-                icon: Icon(
-                  selectedIAm == null ? Icons.person_add_outlined : Icons.person,
-                  color: selectedIAm == null 
-                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.6)
-                    : Theme.of(context).colorScheme.primary,
+          Focus(
+            onFocusChange: (hasFocus) {
+              setState(() {
+                _focusedField = hasFocus ? 'reason' : null;
+              });
+            },
+            child: TextField(
+              controller: reasonController,
+              minLines: isFocused ? 2 : 1,
+              maxLines: isFocused ? 5 : 1,
+              keyboardType: isFocused ? TextInputType.multiline : TextInputType.text,
+              decoration: InputDecoration(
+                labelText: t(context, 'reason'),
+                border: const OutlineInputBorder(),
+                alignLabelWithHint: isFocused,
+                prefixIcon: IconButton(
+                  icon: Icon(
+                    selectedIAm == null ? Icons.person_add_outlined : Icons.person,
+                    color: selectedIAm == null 
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.6)
+                      : Theme.of(context).colorScheme.primary,
+                  ),
+                  tooltip: t(context, 'select_i_am'),
+                  onPressed: () => _showIAmSelection(context, iAmBox),
                 ),
-                tooltip: t(context, 'select_i_am'),
-                onPressed: () => _showIAmSelection(context, iAmBox),
               ),
             ),
           ),
@@ -225,7 +246,7 @@ class FormTab extends StatelessWidget {
                                 style: TextStyle(color: Theme.of(context).colorScheme.error),
                               ),
                               onTap: () {
-                                onIAmChanged?.call(null);
+                                widget.onIAmChanged?.call(null);
                                 Navigator.of(context).pop();
                               },
                             ),
@@ -233,7 +254,7 @@ class FormTab extends StatelessWidget {
                         }
 
                         final definition = filteredDefinitions[index - 1];
-                        final isSelected = selectedIAmId == definition.id;
+                        final isSelected = widget.selectedIAmId == definition.id;
                         
                         return Card(
                           color: isSelected 
@@ -264,7 +285,7 @@ class FormTab extends StatelessWidget {
                               ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
                               : null,
                             onTap: () {
-                              onIAmChanged?.call(definition.id);
+                              widget.onIAmChanged?.call(definition.id);
                               Navigator.of(context).pop();
                             },
                           ),
@@ -290,37 +311,50 @@ class FormTab extends StatelessWidget {
 
   Widget _buildTextField(
       BuildContext context, TextEditingController controller, String key, {bool showTooltip = false}) {
+    final isFocused = _focusedField == key;
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: t(context, key),
-          border: const OutlineInputBorder(),
-          suffixIcon: showTooltip
-            ? GestureDetector(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: Text(t(context, key)),
-                      content: Text(t(context, 'part_tooltip')),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: Text(t(context, 'close')),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                child: const Icon(
-                  Icons.help_outline,
-                  size: 20,
-                  color: Colors.grey,
-                ),
-              )
-            : null,
+      child: Focus(
+        onFocusChange: (hasFocus) {
+          setState(() {
+            _focusedField = hasFocus ? key : null;
+          });
+        },
+        child: TextField(
+          controller: controller,
+          minLines: isFocused ? 2 : 1,
+          maxLines: isFocused ? 5 : 1,
+          keyboardType: isFocused ? TextInputType.multiline : TextInputType.text,
+          decoration: InputDecoration(
+            labelText: t(context, key),
+            border: const OutlineInputBorder(),
+            alignLabelWithHint: isFocused,
+            suffixIcon: showTooltip
+              ? GestureDetector(
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text(t(context, key)),
+                        content: Text(t(context, 'part_tooltip')),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(t(context, 'close')),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: const Icon(
+                    Icons.help_outline,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
+                )
+              : null,
+          ),
         ),
       ),
     );

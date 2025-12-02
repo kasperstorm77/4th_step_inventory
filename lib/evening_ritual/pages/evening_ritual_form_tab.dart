@@ -215,7 +215,7 @@ class _EveningRitualFormTabState extends State<EveningRitualFormTab> {
               // This prevents the slider from jumping back when the user is dragging it
               
               return SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

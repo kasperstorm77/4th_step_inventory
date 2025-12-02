@@ -9,7 +9,7 @@ import '../../fourth_step/models/i_am_definition.dart';
 import '../../eighth_step/models/person.dart';
 import '../../evening_ritual/models/reflection_entry.dart';
 import '../../gratitude/models/gratitude_entry.dart';
-import '../../agnosticism/models/agnosticism_paper.dart';
+import '../../agnosticism/models/barrier_power_pair.dart';
 import '../localizations.dart';
 import '../utils/platform_helper.dart';
 
@@ -533,14 +533,14 @@ class _DataManagementTabState extends State<DataManagementTab> {
           }
         }
 
-        // Import agnosticism papers if present (v6.0+)
+        // Import agnosticism pairs if present (v6.0+)
         if (decoded.containsKey('agnosticism') || decoded.containsKey('agnosticismPapers')) {
-          final agnosticismBox = Hive.box<AgnosticismPaper>('agnosticism_papers');
-          final papersList = (decoded['agnosticism'] ?? decoded['agnosticismPapers']) as List;
+          final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
+          final pairsList = (decoded['agnosticism'] ?? decoded['agnosticismPapers']) as List;
           await agnosticismBox.clear();
-          for (final paperJson in papersList) {
-            final paper = AgnosticismPaper.fromJson(paperJson as Map<String, dynamic>);
-            await agnosticismBox.put(paper.id, paper);
+          for (final pairJson in pairsList) {
+            final pair = BarrierPowerPair.fromJson(pairJson as Map<String, dynamic>);
+            await agnosticismBox.put(pair.id, pair);
           }
         }
 
@@ -610,8 +610,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
       final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
       final gratitudeEntries = gratitudeBox.values.map((g) => g.toJson()).toList();
 
-      final agnosticismBox = Hive.box<AgnosticismPaper>('agnosticism_papers');
-      final agnosticismPapers = agnosticismBox.values.map((p) => p.toJson()).toList();
+      final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
+      final agnosticismPairs = agnosticismBox.values.map((p) => p.toJson()).toList();
 
       final now = DateTime.now().toUtc();
       final exportData = {
@@ -623,7 +623,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
         'people': people, // 8th step people
         'reflections': reflections, // Evening reflections
         'gratitude': gratitudeEntries, // Gratitude entries
-        'agnosticism': agnosticismPapers, // Agnosticism papers
+        'agnosticism': agnosticismPairs, // Agnosticism barrier/power pairs
       };
 
       final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
@@ -782,14 +782,14 @@ class _DataManagementTabState extends State<DataManagementTab> {
         }
       }
 
-      // Import agnosticism papers if present (v6.0+)
+      // Import agnosticism pairs if present (v6.0+)
       if (data.containsKey('agnosticism') || data.containsKey('agnosticismPapers')) {
-        final agnosticismBox = Hive.box<AgnosticismPaper>('agnosticism_papers');
-        final papersList = (data['agnosticism'] ?? data['agnosticismPapers']) as List;
+        final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
+        final pairsList = (data['agnosticism'] ?? data['agnosticismPapers']) as List;
         await agnosticismBox.clear();
-        for (final paperJson in papersList) {
-          final paper = AgnosticismPaper.fromJson(paperJson as Map<String, dynamic>);
-          await agnosticismBox.put(paper.id, paper);
+        for (final pairJson in pairsList) {
+          final pair = BarrierPowerPair.fromJson(pairJson as Map<String, dynamic>);
+          await agnosticismBox.put(pair.id, pair);
         }
       }
 
@@ -846,7 +846,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
     final bool driveAvailable = PlatformHelper.isMobile;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -866,7 +866,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
               children: [
                 Text(t(context, 'sync_google_drive')),
                 Tooltip(
-                  message: isSignedIn ? '' : 'Sign in with Google to enable sync',
+                  message: isSignedIn ? '' : t(context, 'sign_in_to_enable_sync'),
                   child: Switch(
                     value: _syncEnabled,
                     onChanged: isSignedIn ? _toggleSync : null,
@@ -908,7 +908,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
                           IconButton(
                             icon: const Icon(Icons.refresh),
                             onPressed: _loadAvailableBackups,
-                            tooltip: 'Refresh backups',
+                            tooltip: t(context, 'refresh_backups'),
                           ),
                       ],
                     ),

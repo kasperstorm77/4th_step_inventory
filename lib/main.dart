@@ -12,7 +12,7 @@ import 'shared/models/app_entry.dart';
 import 'eighth_step/models/person.dart';
 import 'evening_ritual/models/reflection_entry.dart';
 import 'gratitude/models/gratitude_entry.dart';
-import 'agnosticism/models/agnosticism_paper.dart';
+import 'agnosticism/models/barrier_power_pair.dart';
 import 'shared/services/legacy_drive_service.dart';
 import 'shared/services/all_apps_drive_service_impl.dart';
 import 'fourth_step/services/i_am_service.dart';
@@ -38,8 +38,7 @@ void main() async {
   Hive.registerAdapter(ReflectionEntryAdapter());
   Hive.registerAdapter(ReflectionTypeAdapter());
   Hive.registerAdapter(GratitudeEntryAdapter());
-  Hive.registerAdapter(PaperStatusAdapter());
-  Hive.registerAdapter(AgnosticismPaperAdapter());
+  Hive.registerAdapter(BarrierPowerPairAdapter());
 
   try {
     await Hive.openBox<InventoryEntry>('entries');
@@ -100,14 +99,14 @@ void main() async {
     if (kDebugMode) print('Cleared corrupted gratitude_box and created new one');
   }
 
-  // Open agnosticism papers box
+  // Open agnosticism pairs box
   try {
-    await Hive.openBox<AgnosticismPaper>('agnosticism_papers');
+    await Hive.openBox<BarrierPowerPair>('agnosticism_pairs');
   } catch (e) {
-    if (kDebugMode) print('Error opening agnosticism_papers: $e');
-    await Hive.deleteBoxFromDisk('agnosticism_papers');
-    await Hive.openBox<AgnosticismPaper>('agnosticism_papers');
-    if (kDebugMode) print('Cleared corrupted agnosticism_papers and created new one');
+    if (kDebugMode) print('Error opening agnosticism_pairs: $e');
+    await Hive.deleteBoxFromDisk('agnosticism_pairs');
+    await Hive.openBox<BarrierPowerPair>('agnosticism_pairs');
+    if (kDebugMode) print('Cleared corrupted agnosticism_pairs and created new one');
   }
 
   // Open a separate settings box for sync preferences

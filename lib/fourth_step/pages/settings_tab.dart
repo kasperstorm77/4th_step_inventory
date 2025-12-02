@@ -56,6 +56,7 @@ class _SettingsTabState extends State<SettingsTab> {
                         ),
                       )
                     : ListView.builder(
+                        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
                         itemCount: definitions.length,
                         itemBuilder: (context, index) {
                           final definition = definitions[index];
@@ -197,8 +198,9 @@ class _SettingsTabState extends State<SettingsTab> {
         builder: (context) => AlertDialog(
           title: Text(t(context, 'delete_i_am')),
           content: Text(
-            'Cannot delete "${definition.name}" because it is used by $usageCount ${usageCount == 1 ? 'entry' : 'entries'}.\n\n'
-            'Please remove or change the I Am for those entries first.',
+            t(context, 'cannot_delete_i_am_in_use')
+                .replaceAll('%name%', definition.name)
+                .replaceAll('%count%', usageCount.toString()),
           ),
           actions: [
             TextButton(

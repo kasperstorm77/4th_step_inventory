@@ -167,7 +167,7 @@ class _PersonEditViewState extends State<PersonEditView> {
               IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: widget.onBack,
-                tooltip: 'Back to list',
+                tooltip: t(context, 'back_to_list'),
               ),
               Expanded(
                 child: Text(
@@ -187,7 +187,7 @@ class _PersonEditViewState extends State<PersonEditView> {
         // Form content
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

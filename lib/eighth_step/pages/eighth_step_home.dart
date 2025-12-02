@@ -76,10 +76,9 @@ class _EighthStepHomeState extends State<EighthStepHome> with SingleTickerProvid
             return ListTile(
               leading: Icon(
                 isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                color: isSelected ? Theme.of(dialogContext).colorScheme.primary : null,
+                color: isSelected ? Theme.of(context).colorScheme.primary : null,
               ),
               title: Text(app.name),
-              subtitle: Text(app.description),
               selected: isSelected,
               onTap: () async {
                 if (app.id != currentAppId) {
@@ -126,13 +125,13 @@ class _EighthStepHomeState extends State<EighthStepHome> with SingleTickerProvid
           // App Switcher Icon
           IconButton(
             icon: const Icon(Icons.apps),
-            tooltip: 'Switch App',
+            tooltip: t(context, 'switch_app'),
             onPressed: _showAppSwitcher,
           ),
           // Help Icon
           IconButton(
             icon: const Icon(Icons.help_outline),
-            tooltip: 'Help',
+            tooltip: t(context, 'help'),
             onPressed: () {
               AppHelpService.showHelpDialog(
                 context,
@@ -216,105 +215,109 @@ class EighthStepMainTab extends StatelessWidget {
         final noPeople = people.where((p) => p.column == ColumnType.no).toList();
         final maybePeople = people.where((p) => p.column == ColumnType.maybe).toList();
 
-        Widget buildColumn(String label, List<Person> items, ColumnType columnType) {
+        Widget buildColumnHeader(String label, int count, {bool isFirst = false, bool isLast = false}) {
           return Expanded(
-            child: Column(
-              children: [
-                // Styled header
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.06),
-                      ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                border: Border(
+                  top: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
+                  bottom: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
+                  left: isFirst 
+                      ? BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3))
+                      : BorderSide.none,
+                  right: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
                   ),
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          label,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Count
-                      Container(
-                        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 6),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text('${items.length}', style: const TextStyle(fontSize: 12)),
-                      ),
-                    ],
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 5),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text('$count', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: DragTarget<Person>(
-                    onWillAcceptWithDetails: (details) => details.data.column != columnType,
-                    onAcceptWithDetails: (details) async {
-                      final person = details.data;
-                      final updated = person.copyWith(column: columnType);
-                      updated.lastModified = DateTime.now();
-                      await PersonService.updatePerson(updated);
-                    },
-                    builder: (context, candidateData, rejectedData) {
-                      return Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: candidateData.isNotEmpty ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.04) : null,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: ListView(
-                          children: items.map((person) => Draggable<Person>(
-                            data: person,
-                            feedback: Material(
-                              elevation: 8,
-                              borderRadius: BorderRadius.circular(8),
-                              child: SizedBox(
-                                width: MediaQuery.of(context).size.width / 3 - 40,
-                                child: PersonCard(person: person, onViewPerson: onViewPerson, isDragging: true),
-                              ),
-                            ),
-                            childWhenDragging: Opacity(opacity: 0.3, child: PersonCard(person: person, onViewPerson: onViewPerson)),
-                            child: PersonCard(person: person, onViewPerson: onViewPerson),
-                          )).toList(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         }
 
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              buildColumn(t(context, 'eighth_step_yes'), yesPeople, ColumnType.yes),
-              const SizedBox(width: 16),
-              buildColumn(t(context, 'eighth_step_no'), noPeople, ColumnType.no),
-              const SizedBox(width: 16),
-              buildColumn(t(context, 'eighth_step_maybe'), maybePeople, ColumnType.maybe),
-            ],
-          ),
+        Widget buildColumnContent(List<Person> items, ColumnType columnType) {
+          return Expanded(
+            child: DragTarget<Person>(
+              onWillAcceptWithDetails: (details) => details.data.column != columnType,
+              onAcceptWithDetails: (details) async {
+                final person = details.data;
+                final updated = person.copyWith(column: columnType);
+                updated.lastModified = DateTime.now();
+                await PersonService.updatePerson(updated);
+              },
+              builder: (context, candidateData, rejectedData) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: candidateData.isNotEmpty 
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.04) 
+                        : null,
+                  ),
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                    children: [
+                      ...items.map((person) => Draggable<Person>(
+                        data: person,
+                        feedback: Material(
+                          elevation: 8,
+                          child: SizedBox(
+                            width: MediaQuery.of(context).size.width / 3 - 24,
+                            child: PersonCard(person: person, onViewPerson: onViewPerson, isDragging: true),
+                          ),
+                        ),
+                        childWhenDragging: Opacity(opacity: 0.3, child: PersonCard(person: person, onViewPerson: onViewPerson)),
+                        child: PersonCard(person: person, onViewPerson: onViewPerson),
+                      )),
+                      SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+                    ],
+                  ),
+                );
+              },
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            // Headers row - connected with straight corners
+            Row(
+              children: [
+                buildColumnHeader(t(context, 'eighth_step_yes'), yesPeople.length, isFirst: true),
+                buildColumnHeader(t(context, 'eighth_step_no'), noPeople.length),
+                buildColumnHeader(t(context, 'eighth_step_maybe'), maybePeople.length, isLast: true),
+              ],
+            ),
+            // Content columns
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  buildColumnContent(yesPeople, ColumnType.yes),
+                  buildColumnContent(noPeople, ColumnType.no),
+                  buildColumnContent(maybePeople, ColumnType.maybe),
+                ],
+              ),
+            ),
+          ],
         );
       },
     );
@@ -330,49 +333,58 @@ class PersonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8.0),
-      elevation: isDragging ? 8 : 2,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4.0),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+        ),
+        boxShadow: isDragging ? [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ] : null,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+        child: Row(
           children: [
-            Text(
-              person.name,
-              style: Theme.of(context).textTheme.titleMedium,
+            Expanded(
+              child: Text(
+                person.name,
+                style: Theme.of(context).textTheme.bodyMedium,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // View icon
-                IconButton(
-                  icon: const Icon(Icons.visibility, size: 16),
-                  onPressed: () => onViewPerson(person.internalId),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+            // View icon
+            GestureDetector(
+              onTap: () => onViewPerson(person.internalId),
+              child: Icon(
+                Icons.visibility,
+                size: 16,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+            const SizedBox(width: 6),
+            // Done/Not Done toggle
+            GestureDetector(
+              onTap: () {
+                PersonService.toggleAmendsDone(person.internalId);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: person.amendsDone ? Colors.green : Colors.red,
                 ),
-                const SizedBox(width: 4),
-                // Done/Not Done toggle
-                GestureDetector(
-                  onTap: () {
-                    PersonService.toggleAmendsDone(person.internalId);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: person.amendsDone ? Colors.green : Colors.red,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Icon(
-                      person.amendsDone ? Icons.check : Icons.remove,
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                  ),
+                child: Icon(
+                  person.amendsDone ? Icons.check : Icons.remove,
+                  color: Colors.white,
+                  size: 12,
                 ),
-              ],
+              ),
             ),
           ],
         ),

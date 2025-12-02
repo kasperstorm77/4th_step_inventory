@@ -61,7 +61,7 @@ class EveningRitualListTab extends StatelessWidget {
           ..sort((a, b) => b.compareTo(a));
 
         return ListView.builder(
-          padding: const EdgeInsets.all(8),
+          padding: EdgeInsets.fromLTRB(8, 8, 8, MediaQuery.of(context).padding.bottom + 32),
           itemCount: sortedDates.length,
           itemBuilder: (context, index) {
             final date = sortedDates[index];

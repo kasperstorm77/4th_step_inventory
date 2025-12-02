@@ -30,7 +30,7 @@ Examples:
 - 8th Step: `people_box` (Box<Person>)  
 - Evening Ritual: `reflections_box` (Box<ReflectionEntry>)
 - Gratitude: `gratitude_box` (Box<GratitudeEntry>)
-- Agnosticism: `agnosticism_papers` (Box<AgnosticismPaper>)
+- Agnosticism: `agnosticism_pairs` (Box<BarrierPowerPair>)
 
 **Hive Type IDs** (NEVER reuse):
 - `typeId: 0` - InventoryEntry
@@ -41,8 +41,7 @@ Examples:
 - `typeId: 5` - ReflectionEntry
 - `typeId: 6` - ReflectionType
 - `typeId: 7` - GratitudeEntry
-- `typeId: 8` - AgnosticismPaper
-- `typeId: 9` - PaperStatus
+- `typeId: 8` - BarrierPowerPair (was AgnosticismPaper)
 
 ## Critical Developer Workflows
 
