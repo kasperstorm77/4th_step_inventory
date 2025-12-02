@@ -48,13 +48,27 @@ class _DataManagementTabState extends State<DataManagementTab> {
   bool _interactiveSignIn = false;
   bool _interactiveSignInRequested = false;
   bool _signingInProgress = false;
-  String? _lastPromptedAccountId;
   bool _promptScheduled = false;
 
   // Backup selection state
   List<Map<String, dynamic>> _availableBackups = [];
   String? _selectedBackupFileName;
   bool _loadingBackups = false;
+  
+  // Track if we've already prompted for this account this session
+  // This is persisted in Hive settings so it survives page navigation
+  String? get _lastPromptedAccountId {
+    final value = Hive.box('settings').get('lastPromptedAccountId') as String?;
+    if (kDebugMode) print('_lastPromptedAccountId getter: returning "$value"');
+    return value;
+  }
+  set _lastPromptedAccountId(String? value) {
+    if (value == null) {
+      Hive.box('settings').delete('lastPromptedAccountId');
+    } else {
+      Hive.box('settings').put('lastPromptedAccountId', value);
+    }
+  }
 
   @override
   void initState() {
@@ -77,6 +91,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
               : GoogleSignIn(scopes: _scopes)); // Android uses default (no serverClientId)
       
       _googleSignIn!.onCurrentUserChanged.listen((account) {
+        if (kDebugMode) print('onCurrentUserChanged: account=${account?.displayName}, mounted=$mounted, signingInProgress=$_signingInProgress');
         // Don't update state during an active sign-in to avoid
         // interrupting the sign-in dialog/WebView
         if (!mounted || _signingInProgress) return;
@@ -93,14 +108,12 @@ class _DataManagementTabState extends State<DataManagementTab> {
           }
         });
         if (account != null) {
+          if (kDebugMode) print('onCurrentUserChanged: initializing drive client (NO prompt scheduled)');
           _initializeDriveClient(account);
           // Load backups when signed in
           _loadAvailableBackups();
-          // Only schedule the prompt for automatic/silent sign-ins.
+          // Don't auto-prompt on silent sign-in - user can manually fetch if needed.
           // Interactive sign-ins handle the prompt themselves in _handleSignIn.
-          if (!_interactiveSignIn && !_interactiveSignInRequested) {
-            _schedulePromptForAccount(account);
-          }
         }
       });
 
@@ -356,8 +369,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
       _interactiveSignIn = false;
       _interactiveSignInRequested = false;
     } catch (e) {
-      // Don't let dialog/display errors prevent future prompts. Continue.
-      _lastPromptedAccountId = null;
+      // Log error but DON'T reset _lastPromptedAccountId - this was causing
+      // the dialog to appear every time the user visited settings.
+      if (kDebugMode) print('_maybePromptFetchAfterInteractiveSignIn: Error showing dialog: $e');
       _interactiveSignIn = false;
       _interactiveSignInRequested = false;
     }
@@ -366,7 +380,12 @@ class _DataManagementTabState extends State<DataManagementTab> {
   void _schedulePromptForAccount(GoogleSignInAccount account) {
     if (_promptScheduled) return;
     // If we've already prompted this account, no-op.
-    if (_lastPromptedAccountId == account.id) return;
+    final lastPrompted = _lastPromptedAccountId;
+    if (kDebugMode) print('_schedulePromptForAccount: account.id=${account.id}, lastPrompted=$lastPrompted');
+    if (lastPrompted == account.id) {
+      if (kDebugMode) print('_schedulePromptForAccount: Already prompted this account, skipping');
+      return;
+    }
 
     _promptScheduled = true;
     // Use a post-frame callback to ensure dialog can be shown safely.
@@ -523,6 +542,14 @@ class _DataManagementTabState extends State<DataManagementTab> {
             final paper = AgnosticismPaper.fromJson(paperJson as Map<String, dynamic>);
             await agnosticismBox.put(paper.id, paper);
           }
+        }
+
+        // Save the remote timestamp as local timestamp to prevent repeated sync prompts
+        if (decoded.containsKey('lastModified')) {
+          final remoteTimestamp = DateTime.parse(decoded['lastModified'] as String);
+          final settingsBox = Hive.box('settings');
+          await settingsBox.put('lastModified', remoteTimestamp.toIso8601String());
+          if (kDebugMode) print('_fetchFromGoogle: Saved lastModified timestamp: ${remoteTimestamp.toIso8601String()}');
         }
         
         if (!mounted) return;
