@@ -201,9 +201,14 @@ class EighthStepMainTab extends StatelessWidget {
       valueListenable: Hive.box<Person>('people_box').listenable(),
       builder: (context, box, widget) {
         final people = box.values.toList();
-        final yesPeople = people.where((p) => p.column == ColumnType.yes).toList();
-        final noPeople = people.where((p) => p.column == ColumnType.no).toList();
-        final maybePeople = people.where((p) => p.column == ColumnType.maybe).toList();
+        
+        // Sort by sortOrder within each column
+        final yesPeople = people.where((p) => p.column == ColumnType.yes).toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        final noPeople = people.where((p) => p.column == ColumnType.no).toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        final maybePeople = people.where((p) => p.column == ColumnType.maybe).toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
         Widget buildColumnHeader(String label, int count, {bool isFirst = false, bool isLast = false}) {
           return Expanded(
@@ -247,41 +252,10 @@ class EighthStepMainTab extends StatelessWidget {
 
         Widget buildColumnContent(List<Person> items, ColumnType columnType) {
           return Expanded(
-            child: DragTarget<Person>(
-              onWillAcceptWithDetails: (details) => details.data.column != columnType,
-              onAcceptWithDetails: (details) async {
-                final person = details.data;
-                final updated = person.copyWith(column: columnType);
-                updated.lastModified = DateTime.now();
-                await PersonService.updatePerson(updated);
-              },
-              builder: (context, candidateData, rejectedData) {
-                return Container(
-                  decoration: BoxDecoration(
-                    color: candidateData.isNotEmpty 
-                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.04) 
-                        : null,
-                  ),
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                    children: [
-                      ...items.map((person) => Draggable<Person>(
-                        data: person,
-                        feedback: Material(
-                          elevation: 8,
-                          child: SizedBox(
-                            width: MediaQuery.of(context).size.width / 3 - 24,
-                            child: PersonCard(person: person, onViewPerson: onViewPerson, isDragging: true),
-                          ),
-                        ),
-                        childWhenDragging: Opacity(opacity: 0.3, child: PersonCard(person: person, onViewPerson: onViewPerson)),
-                        child: PersonCard(person: person, onViewPerson: onViewPerson),
-                      )),
-                      SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
-                    ],
-                  ),
-                );
-              },
+            child: _DroppableColumn(
+              items: items,
+              columnType: columnType,
+              onViewPerson: onViewPerson,
             ),
           );
         }
@@ -310,6 +284,257 @@ class EighthStepMainTab extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// A column that supports dropping items at specific positions
+class _DroppableColumn extends StatefulWidget {
+  final List<Person> items;
+  final ColumnType columnType;
+  final Function(String) onViewPerson;
+
+  const _DroppableColumn({
+    required this.items,
+    required this.columnType,
+    required this.onViewPerson,
+  });
+
+  @override
+  State<_DroppableColumn> createState() => _DroppableColumnState();
+}
+
+class _DroppableColumnState extends State<_DroppableColumn> {
+  int? _hoverIndex;
+  final Map<int, GlobalKey> _itemKeys = {};
+  final GlobalKey _listKey = GlobalKey();
+
+  @override
+  void didUpdateWidget(_DroppableColumn oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Clear keys when items change
+    if (oldWidget.items.length != widget.items.length) {
+      _itemKeys.clear();
+    }
+  }
+
+  GlobalKey _getKeyForIndex(int index) {
+    return _itemKeys.putIfAbsent(index, () => GlobalKey());
+  }
+
+  int _calculateDropIndex(Offset globalPosition) {
+    final listRenderBox = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    if (listRenderBox == null) return widget.items.length;
+
+    final localY = listRenderBox.globalToLocal(globalPosition).dy;
+
+    // Find the item we're hovering over by checking actual rendered positions
+    for (int i = 0; i < widget.items.length; i++) {
+      final key = _itemKeys[i];
+      if (key?.currentContext == null) continue;
+
+      final itemRenderBox = key!.currentContext!.findRenderObject() as RenderBox?;
+      if (itemRenderBox == null) continue;
+
+      final itemPosition = itemRenderBox.localToGlobal(Offset.zero);
+      final itemLocalY = listRenderBox.globalToLocal(itemPosition).dy;
+      final itemHeight = itemRenderBox.size.height;
+      final itemCenter = itemLocalY + itemHeight / 2;
+
+      // If drag position is above the center of this item, insert before it
+      if (localY < itemCenter) {
+        return i;
+      }
+    }
+
+    // If we're past all items, insert at the end
+    return widget.items.length;
+  }
+
+  Future<void> _handleDrop(Person person, int insertIndex) async {
+    // When dropping from a different column, the visual index maps directly
+    // to the target column's items (since dragged item isn't in this column).
+    // When dropping within the same column, we need to account for the fact
+    // that the dragged item is still visually present but will be "moved".
+    
+    // For calculating sort order, we need the list WITHOUT the dragged person
+    final columnPeopleWithoutDragged = widget.items
+        .where((p) => p.internalId != person.internalId)
+        .toList();
+    
+    // For same-column drags, we need to think in terms of the filtered list
+    // The insertIndex is based on visual position including the dragged item
+    int targetIndex = insertIndex;
+    
+    if (person.column == widget.columnType) {
+      // Find original position in the visual list (which includes the dragged item)
+      final originalIndex = widget.items.indexWhere((p) => p.internalId == person.internalId);
+      
+      // When dragging down (insertIndex > originalIndex), the visual indicator 
+      // is below where we'll actually insert in the filtered list
+      // When dragging up (insertIndex < originalIndex), no adjustment needed
+      if (originalIndex != -1 && insertIndex > originalIndex) {
+        targetIndex = insertIndex - 1;
+      }
+    }
+    
+    // Clamp target index to valid range for the filtered list
+    targetIndex = targetIndex.clamp(0, columnPeopleWithoutDragged.length);
+
+    // Calculate new sort order based on position in filtered list
+    int newSortOrder;
+    bool needsRebalance = false;
+    
+    if (columnPeopleWithoutDragged.isEmpty) {
+      newSortOrder = 1000;
+    } else if (targetIndex == 0) {
+      // Insert at beginning - get sortOrder less than first item
+      newSortOrder = columnPeopleWithoutDragged.first.sortOrder - 1000;
+    } else if (targetIndex == columnPeopleWithoutDragged.length) {
+      // Insert at end - get sortOrder greater than last item
+      newSortOrder = columnPeopleWithoutDragged.last.sortOrder + 1000;
+    } else {
+      // Insert between two items - get sortOrder between them
+      final before = columnPeopleWithoutDragged[targetIndex - 1].sortOrder;
+      final after = columnPeopleWithoutDragged[targetIndex].sortOrder;
+      final gap = after - before;
+      
+      if (gap <= 1) {
+        // Gap is too small - need to rebalance after insertion
+        needsRebalance = true;
+        newSortOrder = before; // Temporary, will be fixed by rebalance
+      } else {
+        newSortOrder = before + (gap ~/ 2);
+      }
+    }
+
+    // Update the dropped person
+    final updated = person.copyWith(
+      column: widget.columnType,
+      sortOrder: newSortOrder,
+    );
+    updated.lastModified = DateTime.now();
+    await PersonService.updatePerson(updated);
+    
+    // Rebalance if needed - reassign evenly-spaced sortOrders to all items in column
+    if (needsRebalance) {
+      await _rebalanceColumn();
+    }
+  }
+  
+  Future<void> _rebalanceColumn() async {
+    // Get all people in this column, sorted by current sortOrder
+    final box = Hive.box<Person>('people_box');
+    final columnPeople = box.values
+        .where((p) => p.column == widget.columnType)
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    
+    // Reassign sortOrders with large gaps (1000 apart)
+    for (int i = 0; i < columnPeople.length; i++) {
+      final newOrder = (i + 1) * 1000;
+      if (columnPeople[i].sortOrder != newOrder) {
+        final updated = columnPeople[i].copyWith(sortOrder: newOrder);
+        updated.lastModified = DateTime.now();
+        await PersonService.updatePerson(updated);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DragTarget<Person>(
+      onWillAcceptWithDetails: (details) => true,
+      onLeave: (data) {
+        setState(() => _hoverIndex = null);
+      },
+      onMove: (details) {
+        final newIndex = _calculateDropIndex(details.offset);
+        if (_hoverIndex != newIndex) {
+          setState(() => _hoverIndex = newIndex);
+        }
+      },
+      onAcceptWithDetails: (details) async {
+        final insertIndex = _hoverIndex ?? widget.items.length;
+        await _handleDrop(details.data, insertIndex);
+        setState(() => _hoverIndex = null);
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isDraggingOver = candidateData.isNotEmpty;
+        
+        return Container(
+          decoration: BoxDecoration(
+            color: isDraggingOver 
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.04) 
+                : null,
+          ),
+          child: ListView(
+            key: _listKey,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            children: [
+              // Build items with drop indicators
+              for (int i = 0; i <= widget.items.length; i++) ...[
+                // Drop indicator before this position
+                if (isDraggingOver && _hoverIndex == i)
+                  _DropIndicator(),
+                // The actual item (if not past the end)
+                if (i < widget.items.length)
+                  Draggable<Person>(
+                    data: widget.items[i],
+                    feedback: Material(
+                      elevation: 8,
+                      borderRadius: BorderRadius.circular(4),
+                      child: SizedBox(
+                        width: MediaQuery.of(context).size.width / 3 - 24,
+                        child: PersonCard(
+                          person: widget.items[i],
+                          onViewPerson: widget.onViewPerson,
+                          isDragging: true,
+                        ),
+                      ),
+                    ),
+                    childWhenDragging: Opacity(
+                      opacity: 0.3,
+                      child: PersonCard(
+                        key: _getKeyForIndex(i),
+                        person: widget.items[i],
+                        onViewPerson: widget.onViewPerson,
+                      ),
+                    ),
+                    child: PersonCard(
+                      key: _getKeyForIndex(i),
+                      person: widget.items[i],
+                      onViewPerson: widget.onViewPerson,
+                    ),
+                  ),
+              ],
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Visual indicator showing where an item will be dropped
+class _DropIndicator extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 4,
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(2),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+            blurRadius: 4,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
     );
   }
 }

@@ -34,16 +34,19 @@ class GratitudeService {
     return entries;
   }
 
-  /// Get entries for a specific date
+  /// Get entries for a specific date (newest first by creation time)
   List<GratitudeEntry> getEntriesForDate(
     Box<GratitudeEntry> box,
     DateTime date,
   ) {
     final targetDate = DateTime(date.year, date.month, date.day);
-    return box.values.where((entry) {
+    final entries = box.values.where((entry) {
       final entryDate = DateTime(entry.date.year, entry.date.month, entry.date.day);
       return entryDate.isAtSameMomentAs(targetDate);
     }).toList();
+    // Sort by creation time, newest first
+    entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return entries;
   }
 
   /// Get all entries grouped by date

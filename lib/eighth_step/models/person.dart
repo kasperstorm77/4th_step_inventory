@@ -33,13 +33,18 @@ class Person extends HiveObject {
   @HiveField(5)
   DateTime lastModified;
 
+  @HiveField(6)
+  int sortOrder;
+
   Person({
     String? internalId,
     required this.name,
     this.amends,
     required this.column,
     this.amendsDone = false,
+    int? sortOrder,
   })  : internalId = internalId ?? const Uuid().v4(),
+        sortOrder = sortOrder ?? DateTime.now().millisecondsSinceEpoch,
         lastModified = DateTime.now();
 
   factory Person.create({
@@ -59,6 +64,7 @@ class Person extends HiveObject {
     String? amends,
     ColumnType? column,
     bool? amendsDone,
+    int? sortOrder,
   }) {
     return Person(
       internalId: internalId,
@@ -66,6 +72,7 @@ class Person extends HiveObject {
       amends: amends ?? this.amends,
       column: column ?? this.column,
       amendsDone: amendsDone ?? this.amendsDone,
+      sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 
@@ -101,6 +108,7 @@ class Person extends HiveObject {
         'column': columnToString(column),
         'amendsDone': amendsDone,
         'lastModified': lastModified.toIso8601String(),
+        'sortOrder': sortOrder,
       };
 
   factory Person.fromJson(Map<String, dynamic> json) {
@@ -110,6 +118,7 @@ class Person extends HiveObject {
       amends: json['amends'] as String?,
       column: columnFromString(json['column'] as String),
       amendsDone: json['amendsDone'] as bool? ?? false,
+      sortOrder: json['sortOrder'] as int?,
     );
   }
 }

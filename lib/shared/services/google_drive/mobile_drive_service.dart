@@ -319,7 +319,7 @@ class MobileDriveService {
     }
   }
 
-  /// Download content from Drive
+  /// Download content from Drive (reads the most recent backup file)
   Future<String?> downloadContent() async {
     if (_driveClient == null) {
       if (!await _ensureAuthenticated()) {
@@ -329,7 +329,19 @@ class MobileDriveService {
     }
 
     try {
-      final content = await _driveClient!.readFileContent();
+      // Find the most recent backup file
+      final backups = await listAvailableBackups();
+      if (backups.isEmpty) {
+        if (kDebugMode) print('No backup files found on Drive');
+        return null;
+      }
+      
+      // backups are sorted newest first, so take the first one
+      final mostRecent = backups.first;
+      final fileName = mostRecent['fileName'] as String;
+      if (kDebugMode) print('Downloading most recent backup: $fileName');
+      
+      final content = await _driveClient!.readBackupFile(fileName);
       if (content != null) {
         _downloadController.add('Download successful');
         if (kDebugMode) print('Drive download successful');

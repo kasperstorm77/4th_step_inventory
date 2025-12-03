@@ -102,7 +102,7 @@ class WindowsDriveServiceWrapper {
     }
   }
 
-  /// Download content from Drive
+  /// Download content from Drive (reads the most recent backup file)
   Future<String?> downloadContent() async {
     if (!_driveService.isSignedIn) {
       if (kDebugMode) print('Windows Drive: Not signed in');
@@ -110,9 +110,19 @@ class WindowsDriveServiceWrapper {
     }
 
     try {
-      final content = await _driveService.downloadFile(
-        fileName: _driveService.config.fileName,
-      );
+      // Find the most recent backup file
+      final backups = await listAvailableBackups();
+      if (backups.isEmpty) {
+        if (kDebugMode) print('Windows Drive: No backup files found');
+        return null;
+      }
+      
+      // backups are sorted newest first, so take the first one
+      final mostRecent = backups.first;
+      final fileName = mostRecent['fileName'] as String;
+      if (kDebugMode) print('Windows Drive: Downloading most recent backup: $fileName');
+      
+      final content = await _driveService.downloadBackupContent(fileName);
       
       if (content != null) {
         _downloadController.add(content);

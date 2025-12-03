@@ -16,10 +16,35 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
   final GratitudeService _service = GratitudeService();
   final TextEditingController _towardsController = TextEditingController();
   final TextEditingController _forController = TextEditingController();
+  final FocusNode _towardsFocus = FocusNode();
+  final FocusNode _forFocus = FocusNode();
   GratitudeEntry? _editingEntry;
+  bool _isFormExpanded = false;
+
+  void _expandFormAndFocus(FocusNode focusNode) {
+    if (!_isFormExpanded) {
+      setState(() {
+        _isFormExpanded = true;
+      });
+    }
+    // Request focus after the frame to ensure the widget tree is stable
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      focusNode.requestFocus();
+    });
+  }
+
+  void _collapseForm() {
+    _towardsFocus.unfocus();
+    _forFocus.unfocus();
+    setState(() {
+      _isFormExpanded = false;
+    });
+  }
 
   @override
   void dispose() {
+    _towardsFocus.dispose();
+    _forFocus.dispose();
     _towardsController.dispose();
     _forController.dispose();
     super.dispose();
@@ -55,6 +80,7 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
 
     _towardsController.clear();
     _forController.clear();
+    _collapseForm();
     setState(() {
       _editingEntry = null;
     });
@@ -65,6 +91,7 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
     
     setState(() {
       _editingEntry = entry;
+      _isFormExpanded = true;
       _towardsController.text = entry.gratitudeTowards;
       _forController.text = entry.gratefulFor;
     });
@@ -111,6 +138,7 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
   }
 
   void _cancelEdit() {
+    _collapseForm();
     setState(() {
       _editingEntry = null;
       _towardsController.clear();
@@ -121,56 +149,80 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now();
+    final isEditingExisting = _editingEntry != null;
+    final hideExtras = _isFormExpanded;
     
     return Column(
       children: [
-        // Date header
-        Card(
-          margin: const EdgeInsets.all(8.0),
-          child: ListTile(
-            leading: const Icon(Icons.calendar_today),
-            title: Text(DateFormat.yMMMMd().format(today)),
-            subtitle: Text(t(context, 'gratitude_today_subtitle')),
+        // Date header - hide when form is focused to make room
+        if (!hideExtras)
+          Card(
+            margin: const EdgeInsets.all(8.0),
+            child: ListTile(
+              leading: const Icon(Icons.calendar_today),
+              title: Text(DateFormat.yMMMMd().format(today)),
+              subtitle: Text(t(context, 'gratitude_today_subtitle')),
+            ),
           ),
-        ),
 
         // Input form
         Card(
-          margin: const EdgeInsets.symmetric(horizontal: 8.0),
+          margin: EdgeInsets.fromLTRB(8.0, hideExtras ? 8.0 : 0, 8.0, 0),
           child: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                Text(
-                  _editingEntry != null
-                      ? t(context, 'gratitude_edit_entry')
-                      : t(context, 'gratitude_add_entry'),
-                  style: Theme.of(context).textTheme.titleMedium,
+                if (isEditingExisting)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text(
+                      t(context, 'gratitude_edit_entry'),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                MouseRegion(
+                  cursor: SystemMouseCursors.text,
+                  child: GestureDetector(
+                    onTap: () => _expandFormAndFocus(_towardsFocus),
+                    child: AbsorbPointer(
+                      absorbing: !_isFormExpanded,
+                      child: TextField(
+                        controller: _towardsController,
+                        focusNode: _towardsFocus,
+                        decoration: InputDecoration(
+                          labelText: t(context, 'gratitude_towards_label'),
+                          hintText: t(context, 'gratitude_towards_hint'),
+                          border: const OutlineInputBorder(),
+                        ),
+                        maxLines: 2,
+                        textCapitalization: TextCapitalization.sentences,
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _towardsController,
-                  decoration: InputDecoration(
-                    labelText: t(context, 'gratitude_towards_label'),
-                    hintText: t(context, 'gratitude_towards_hint'),
-                    border: const OutlineInputBorder(),
+                MouseRegion(
+                  cursor: SystemMouseCursors.text,
+                  child: GestureDetector(
+                    onTap: () => _expandFormAndFocus(_forFocus),
+                    child: AbsorbPointer(
+                      absorbing: !_isFormExpanded,
+                      child: TextField(
+                        controller: _forController,
+                        focusNode: _forFocus,
+                        decoration: InputDecoration(
+                          labelText: t(context, 'gratitude_for_label'),
+                          hintText: t(context, 'gratitude_for_hint'),
+                          border: const OutlineInputBorder(),
+                        ),
+                        maxLines: 2,
+                        textCapitalization: TextCapitalization.sentences,
+                        onSubmitted: (_) => _saveEntry(),
+                      ),
+                    ),
                   ),
-                  maxLines: 2,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _forController,
-                  decoration: InputDecoration(
-                    labelText: t(context, 'gratitude_for_label'),
-                    hintText: t(context, 'gratitude_for_hint'),
-                    border: const OutlineInputBorder(),
-                  ),
-                  maxLines: 2,
-                  textCapitalization: TextCapitalization.sentences,
-                  onSubmitted: (_) => _saveEntry(),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -199,75 +251,77 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
         ),
       ),
 
-        const SizedBox(height: 8),
+        // Today's entries list - hide when form is focused to make room
+        if (!hideExtras) ...[
+          const SizedBox(height: 8),
 
-        // Today's entries list
-        Expanded(
-          child: ValueListenableBuilder(
-            valueListenable: Hive.box<GratitudeEntry>('gratitude_box').listenable(),
-            builder: (context, Box<GratitudeEntry> box, _) {
-              final entries = _service.getEntriesForDate(box, today);
+          Expanded(
+            child: ValueListenableBuilder(
+              valueListenable: Hive.box<GratitudeEntry>('gratitude_box').listenable(),
+              builder: (context, Box<GratitudeEntry> box, _) {
+                final entries = _service.getEntriesForDate(box, today);
 
-              if (entries.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.favorite_border,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        t(context, 'gratitude_no_entries_today'),
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              return ListView.builder(
-                padding: EdgeInsets.fromLTRB(8, 0, 8, MediaQuery.of(context).padding.bottom + 32),
-                itemCount: entries.length,
-                itemBuilder: (context, index) {
-                  final entry = entries[index];
-
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.favorite, color: Colors.pink),
-                      title: Text(entry.gratitudeTowards),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (entry.gratefulFor.isNotEmpty)
-                            Text(
-                              entry.gratefulFor,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          const SizedBox(height: 4),
-                          Text(
-                            DateFormat.jm().format(entry.createdAt),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _deleteEntry(entry),
-                        color: Colors.red,
-                      ),
-                      onTap: () => _editEntry(entry),
+                if (entries.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.favorite_border,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          t(context, 'gratitude_no_entries_today'),
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                        ),
+                      ],
                     ),
                   );
-                },
-              );
-            },
+                }
+
+                return ListView.builder(
+                  padding: EdgeInsets.fromLTRB(8, 0, 8, MediaQuery.of(context).padding.bottom + 32),
+                  itemCount: entries.length,
+                  itemBuilder: (context, index) {
+                    final entry = entries[index];
+
+                    return Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.favorite, color: Colors.pink),
+                        title: Text(entry.gratitudeTowards),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (entry.gratefulFor.isNotEmpty)
+                              Text(
+                                entry.gratefulFor,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat.jm().format(entry.createdAt),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _deleteEntry(entry),
+                          color: Colors.red,
+                        ),
+                        onTap: () => _editEntry(entry),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
