@@ -182,46 +182,44 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  // Timer fields (duration)
-                  AnimatedCrossFade(
-                    firstChild: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  // Timer fields (duration) - show/hide based on type
+                  if (selectedType == RitualItemType.timer) ...[
+                    Text(
+                      t(context, 'morning_ritual_duration'),
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
                       children: [
-                        Text(
-                          t(context, 'morning_ritual_duration'),
-                          style: Theme.of(context).textTheme.titleSmall,
+                        Expanded(
+                          child: TextField(
+                            controller: minutesController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: t(context, 'morning_ritual_minutes'),
+                              border: const OutlineInputBorder(),
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: minutesController,
-                                keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  labelText: t(context, 'morning_ritual_minutes'),
-                                  border: const OutlineInputBorder(),
-                                ),
-                              ),
+                        const SizedBox(width: 8),
+                        const Text(':'),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: secondsController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: t(context, 'morning_ritual_seconds'),
+                              border: const OutlineInputBorder(),
                             ),
-                            const SizedBox(width: 8),
-                            const Text(':'),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: secondsController,
-                                keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  labelText: t(context, 'morning_ritual_seconds'),
-                                  border: const OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
-                    secondChild: TextField(
+                  ],
+                  // Prayer text field - show/hide based on type
+                  if (selectedType == RitualItemType.prayer)
+                    TextField(
                       controller: prayerTextController,
                       decoration: InputDecoration(
                         labelText: t(context, 'morning_ritual_prayer_text'),
@@ -230,11 +228,6 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
                       ),
                       maxLines: 5,
                     ),
-                    crossFadeState: selectedType == RitualItemType.timer
-                        ? CrossFadeState.showFirst
-                        : CrossFadeState.showSecond,
-                    duration: const Duration(milliseconds: 200),
-                  ),
                 ],
               ),
             ),

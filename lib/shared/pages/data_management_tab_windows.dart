@@ -25,6 +25,8 @@ import '../../eighth_step/models/person.dart';
 import '../../evening_ritual/models/reflection_entry.dart';
 import '../../gratitude/models/gratitude_entry.dart';
 import '../../agnosticism/models/barrier_power_pair.dart';
+import '../../morning_ritual/models/ritual_item.dart';
+import '../../morning_ritual/models/morning_ritual_entry.dart';
 import '../localizations.dart';
 import '../services/all_apps_drive_service_impl.dart';
 
@@ -262,12 +264,14 @@ class _DataManagementTabState extends State<DataManagementTab> {
     final reflectionsBox = Hive.box<ReflectionEntry>('reflections_box');
     final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
     final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
+    final morningRitualItemsBox = Hive.box<RitualItem>('morning_ritual_items');
+    final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
 
     final now = DateTime.now().toUtc();
     
     // Field order matches Mobile and Drive upload for consistency
     return {
-      'version': '6.0',
+      'version': '7.0',
       'exportDate': now.toIso8601String(),
       'lastModified': now.toIso8601String(),
       'iAmDefinitions': iAmBox.values.map((def) {
@@ -286,6 +290,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
       'reflections': reflectionsBox.values.map((r) => r.toJson()).toList(),
       'gratitude': gratitudeBox.values.map((g) => g.toJson()).toList(),
       'agnosticism': agnosticismBox.values.map((a) => a.toJson()).toList(),
+      'morningRitualItems': morningRitualItemsBox.values.map((i) => i.toJson()).toList(),
+      'morningRitualEntries': morningRitualEntriesBox.values.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -349,6 +355,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
     final reflectionsBox = Hive.box<ReflectionEntry>('reflections_box');
     final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
     final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
+    final morningRitualItemsBox = Hive.box<RitualItem>('morning_ritual_items');
+    final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
 
     // Import I Am definitions first (matches format from export)
     if (data.containsKey('iAmDefinitions')) {
@@ -396,7 +404,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
       }
     }
 
-    // Support both 'gratitude' (v6.0) and 'gratitudeEntries' (older) keys
+    // Support both 'gratitude' (v6.0+) and 'gratitudeEntries' (older) keys
     final gratitudeKey = data.containsKey('gratitude') ? 'gratitude' : 'gratitudeEntries';
     if (data.containsKey(gratitudeKey)) {
       await gratitudeBox.clear();
@@ -406,7 +414,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
       }
     }
 
-    // Support both 'agnosticism' (v6.0) and 'agnosticismPapers' (older) keys
+    // Support both 'agnosticism' (v6.0+) and 'agnosticismPapers' (older) keys
     final agnosticismKey = data.containsKey('agnosticism') ? 'agnosticism' : 'agnosticismPapers';
     if (data.containsKey(agnosticismKey)) {
       await agnosticismBox.clear();
@@ -414,6 +422,26 @@ class _DataManagementTabState extends State<DataManagementTab> {
         final pair = BarrierPowerPair.fromJson(pairJson as Map<String, dynamic>);
         await agnosticismBox.put(pair.id, pair);
       }
+    }
+
+    // Import morning ritual items (v7.0+)
+    if (data.containsKey('morningRitualItems')) {
+      await morningRitualItemsBox.clear();
+      for (final itemJson in data['morningRitualItems'] as List) {
+        final item = RitualItem.fromJson(itemJson as Map<String, dynamic>);
+        await morningRitualItemsBox.put(item.id, item);
+      }
+      if (kDebugMode) print('Windows import: Imported ${morningRitualItemsBox.length} morning ritual items');
+    }
+
+    // Import morning ritual entries (v7.0+)
+    if (data.containsKey('morningRitualEntries')) {
+      await morningRitualEntriesBox.clear();
+      for (final entryJson in data['morningRitualEntries'] as List) {
+        final entry = MorningRitualEntry.fromJson(entryJson as Map<String, dynamic>);
+        await morningRitualEntriesBox.put(entry.id, entry);
+      }
+      if (kDebugMode) print('Windows import: Imported ${morningRitualEntriesBox.length} morning ritual entries');
     }
   }
 
@@ -538,5 +566,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
     await Hive.box<ReflectionEntry>('reflections_box').clear();
     await Hive.box<GratitudeEntry>('gratitude_box').clear();
     await Hive.box<BarrierPowerPair>('agnosticism_pairs').clear();
+    await Hive.box<RitualItem>('morning_ritual_items').clear();
+    await Hive.box<MorningRitualEntry>('morning_ritual_entries').clear();
   }
 }

@@ -1,267 +1,299 @@
+import 'dart:convert';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
+import 'package:flutter/foundation.dart';
+import 'package:csv/csv.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-
 import '../localizations.dart';
-import '../utils/platform_helper.dart';
 import 'all_apps_drive_service.dart';
+import '../../fourth_step/models/inventory_entry.dart';
 
-/// Service to handle app version tracking and first-run/update scenarios.
-/// 
-/// On first install or after update, this service can prompt users to:
-/// 1. Sign in to Google Drive
-/// 2. Fetch existing data from the cloud (if available)
 class AppVersionService {
-  static const String _boxName = 'app_version';
-  static const String _versionKey = 'last_run_version';
-  static const String _buildKey = 'last_run_build';
-
-  static Box? _box;
-
-  /// Initialize the version service box
-  static Future<void> initialize() async {
-    if (_box == null || !_box!.isOpen) {
-      _box = await Hive.openBox(_boxName);
-    }
-  }
-
-  /// Get the last version the app was run with
-  static String? getLastRunVersion() {
-    return _box?.get(_versionKey) as String?;
-  }
-
-  /// Get the last build number the app was run with
-  static int? getLastRunBuild() {
-    return _box?.get(_buildKey) as int?;
-  }
-
-  /// Save the current version as the last run version
-  static Future<void> saveCurrentVersion(PackageInfo packageInfo) async {
-    await _box?.put(_versionKey, packageInfo.version);
-    await _box?.put(_buildKey, int.tryParse(packageInfo.buildNumber) ?? 0);
-  }
-
-  /// Check if this is a first install (no previous version recorded)
-  static bool isFirstInstall() {
-    return getLastRunVersion() == null;
-  }
-
-  /// Check if the app was just updated (version or build changed)
-  static bool wasJustUpdated(PackageInfo packageInfo) {
-    final lastVersion = getLastRunVersion();
-    final lastBuild = getLastRunBuild();
-    
-    if (lastVersion == null) return false; // First install, not update
-    
-    final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
-    return lastVersion != packageInfo.version || lastBuild != currentBuild;
-  }
-
-  /// Show dialog offering to fetch data from Google Drive on first install
-  static Future<void> showFirstInstallDialog(BuildContext context) async {
-    // Check if already signed in
-    final allAppsService = AllAppsDriveService.instance;
-    final isAuthenticated = allAppsService.isAuthenticated;
-    
-    if (isAuthenticated) {
-      // Already signed in, just offer to fetch
-      await _showFetchDialog(context);
-    } else {
-      // Not signed in, offer to sign in first
-      await _showSignInDialog(context);
-    }
-  }
-
-  /// Show dialog after app update
-  static Future<void> showUpdateDialog(BuildContext context, PackageInfo packageInfo) async {
-    // Check if already signed in
-    final allAppsService = AllAppsDriveService.instance;
-    final isAuthenticated = allAppsService.isAuthenticated;
-    
-    if (isAuthenticated) {
-      // Already signed in, offer to fetch latest
-      await _showFetchDialog(context, isUpdate: true);
-    }
-    // If not signed in after update, don't bother them - they probably don't use Drive sync
-  }
-
-  /// Show sign-in dialog
-  static Future<void> _showSignInDialog(BuildContext context) async {
-    if (!context.mounted) return;
-    
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(t(context, 'welcomeToTwelveSteps')),
-        content: Text(t(context, 'firstInstallSignInPrompt')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(t(context, 'skipForNow')),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(t(context, 'signInToGoogleDrive')),
-          ),
-        ],
-      ),
-    );
-
-    if (result == true && context.mounted) {
-      // User wants to sign in - redirect to Data Management tab
-      // The app should navigate to settings/data management
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(t(context, 'goToDataManagementToSignIn')),
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    }
-  }
-
-  /// Show fetch dialog
-  static Future<void> _showFetchDialog(BuildContext context, {bool isUpdate = false}) async {
-    if (!context.mounted) return;
-    
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(isUpdate 
-          ? t(context, 'appUpdated')
-          : t(context, 'welcomeBack')),
-        content: Text(isUpdate
-          ? t(context, 'updateFetchPrompt')
-          : t(context, 'existingDataFetchPrompt')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(t(context, 'skipForNow')),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(t(context, 'fetchFromDrive')),
-          ),
-        ],
-      ),
-    );
-
-    if (result == true && context.mounted) {
-      await _performFetch(context);
-    }
-  }
-
-  /// Perform the actual fetch from Google Drive
-  static Future<void> _performFetch(BuildContext context) async {
-    if (!context.mounted) return;
-    
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        content: Row(
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(width: 20),
-            Text(t(context, 'fetchingFromDrive')),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      final allAppsService = AllAppsDriveService.instance;
-      
-      // Enable sync if not already enabled
-      if (!allAppsService.syncEnabled) {
-        allAppsService.setSyncEnabled(true);
-      }
-      
-      // Fetch from Drive using AllAppsDriveService (empty string = latest/default file)
-      await allAppsService.downloadBackupContent('');
-      
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(t(context, 'dataFetchedSuccessfully')),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${t(context, 'fetchFailed')}: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  /// Check if we should prompt the user for a Google Drive fetch
-  /// (called by fourth_step_home.dart on startup)
-  static Future<bool> shouldPromptGoogleFetch() async {
-    // Skip on desktop for now - Drive sync UI is different
-    if (PlatformHelper.isDesktop) return false;
-    
-    await initialize();
-    
+  static const String _versionKey = 'app_version';
+  static const String _installDateKey = 'install_date';
+  
+  static Future<bool> isNewInstallOrUpdate() async {
     final packageInfo = await PackageInfo.fromPlatform();
+    final currentVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
     
-    // Prompt on first install or after update
-    if (isFirstInstall() || wasJustUpdated(packageInfo)) {
-      // Check if already signed in
-      final allAppsService = AllAppsDriveService.instance;
-      final isAuthenticated = allAppsService.isAuthenticated;
-      
-      // Only prompt if authenticated (otherwise they need to sign in via Data Management first)
-      return isAuthenticated;
+    final settingsBox = Hive.box('settings');
+    final storedVersion = settingsBox.get(_versionKey);
+    
+    if (kDebugMode) {
+      print('AppVersionService: Current version: $currentVersion, Stored version: $storedVersion');
+    }
+    
+    if (storedVersion == null) {
+      // First time opening the app - new installation
+      await _recordCurrentVersion(currentVersion);
+      if (kDebugMode) {
+        print('AppVersionService: Detected new installation');
+      }
+      return true;
+    }
+    
+    if (storedVersion != currentVersion) {
+      // Version changed - app was updated
+      await _recordCurrentVersion(currentVersion);
+      if (kDebugMode) {
+        print('AppVersionService: Detected app update from $storedVersion to $currentVersion');
+      }
+      return true;
     }
     
     return false;
   }
-
-  /// Show the Google fetch dialog (called by fourth_step_home.dart)
-  static Future<void> showGoogleFetchDialog(BuildContext context) async {
-    if (!context.mounted) return;
+  
+  static Future<void> _recordCurrentVersion(String version) async {
+    final settingsBox = Hive.box('settings');
+    await settingsBox.put(_versionKey, version);
     
-    final packageInfo = await PackageInfo.fromPlatform();
-    final isUpdate = wasJustUpdated(packageInfo);
-    
-    await _showFetchDialog(context, isUpdate: isUpdate);
-    
-    // Always save the current version after showing dialog
-    await saveCurrentVersion(packageInfo);
+    // Also record install/update date if not exists
+    if (!settingsBox.containsKey(_installDateKey)) {
+      await settingsBox.put(_installDateKey, DateTime.now().toIso8601String());
+    }
   }
-
-  /// Main entry point - check version and show appropriate dialogs
-  static Future<void> checkVersionAndPrompt(BuildContext context) async {
-    // Skip on desktop for now - Drive sync UI is different
-    if (PlatformHelper.isDesktop) return;
-    
-    await initialize();
-    
-    final packageInfo = await PackageInfo.fromPlatform();
-    
-    if (isFirstInstall()) {
-      // First install - offer to sign in and fetch
-      if (context.mounted) {
-        await showFirstInstallDialog(context);
+  
+  static Future<bool> shouldPromptGoogleFetch() async {
+    // Check if it's a new install/update
+    final isNewInstallOrUpdate = await AppVersionService.isNewInstallOrUpdate();
+    if (!isNewInstallOrUpdate) {
+      if (kDebugMode) {
+        print('AppVersionService: Not a new install/update, skipping Google fetch prompt');
       }
-    } else if (wasJustUpdated(packageInfo)) {
-      // App was updated - offer to fetch latest
-      if (context.mounted) {
-        await showUpdateDialog(context, packageInfo);
-      }
+      return false;
     }
     
-    // Always save the current version
-    await saveCurrentVersion(packageInfo);
+    // Check if user is signed in to Google
+    final driveService = AllAppsDriveService.instance;
+    if (!driveService.isAuthenticated) {
+      if (kDebugMode) {
+        print('AppVersionService: No Google Drive client available, skipping fetch prompt');
+      }
+      return false; // Not signed in, can't fetch
+    }
+    
+    // NEW LOGIC: If it's a new install/update, always prompt the user
+    // This gives them control over fetching, regardless of sync state
+    if (kDebugMode) {
+      if (driveService.syncEnabled) {
+        print('AppVersionService: Should prompt for Google fetch - new install/update with sync enabled');
+      } else {
+        print('AppVersionService: Should prompt for Google fetch - new install/update with Google account but sync disabled');
+      }
+    }
+    return true;
+  }
+  
+  static Future<void> showGoogleFetchDialog(BuildContext context) async {
+    final driveService = AllAppsDriveService.instance;
+    final isUpdate = await _isUpdate();
+    
+    // Always prompt the user, regardless of sync state
+    // This gives them control over fetching on new installs/updates
+    String dialogMessage;
+    if (driveService.syncEnabled) {
+      dialogMessage = isUpdate 
+        ? 'App update detected. Would you like to refresh your data from Google Drive?'
+        : 'New installation detected. Would you like to fetch your existing data from Google Drive?';
+    } else {
+      dialogMessage = 'This appears to be a new installation or update. Would you like to sync your data from Google Drive?';
+    }
+    
+    if (!context.mounted) return;
+    final shouldFetch = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false, // Make it modal for new installs
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t(context, 'googlefetch')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isUpdate ? Icons.system_update : Icons.cloud_download,
+              size: 48,
+              color: Theme.of(context).primaryColor,
+            ),
+            const SizedBox(height: 16),
+            Text(t(context, 'confirm_google_fetch')),
+            const SizedBox(height: 8),
+            Text(
+              dialogMessage,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop(false);
+            },
+            child: Text(t(context, 'cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop(true);
+            },
+            child: Text(t(context, 'fetch')),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldFetch == true && context.mounted) {
+      await _performGoogleFetch(context);
+    }
+  }
+  
+  static Future<bool> _isUpdate() async {
+    final settingsBox = Hive.box('settings');
+    final storedVersion = settingsBox.get(_versionKey);
+    return storedVersion != null; // If there was a stored version, it's an update
+  }
+  
+  static Future<void> _performGoogleFetch(BuildContext context) async {
+    try {
+      // Show loading indicator
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 16),
+                Text(t(context, 'fetching_data')),
+              ],
+            ),
+            duration: const Duration(seconds: 30),
+          ),
+        );
+      }
+
+      final driveService = AllAppsDriveService.instance;
+      if (!driveService.isAuthenticated) {
+        throw Exception('Google Drive client not available');    
+      }
+
+      // Use AllAppsDriveService to download backup content (empty string = latest)
+      final content = await driveService.downloadBackupContent('');
+      if (content == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(t(context, 'no_data_found')),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      final entriesBox = Hive.box<InventoryEntry>('entries');
+      final settingsBox = Hive.box('settings');
+
+      // Parse the data using the same logic as SettingsTab
+      int entriesCount = 0;
+      String fetchType = 'unknown';
+
+      // Try JSON first (new format)
+      try {
+        final decoded = json.decode(content) as Map<String, dynamic>;
+        final entries = decoded['entries'] as List<dynamic>?;
+        if (entries != null) {
+          await entriesBox.clear();
+          for (final item in entries) {
+            if (item is Map<String, dynamic>) {
+              final entry = InventoryEntry(
+                item['resentment']?.toString() ?? '',
+                item['reason']?.toString() ?? '',
+                item['affect']?.toString() ?? '',
+                item['part']?.toString() ?? '',
+                item['defect']?.toString() ?? '',
+              );
+              entriesBox.add(entry);
+            }
+          }
+          entriesCount = entries.length;
+          fetchType = 'JSON';
+        }
+      } catch (_) {
+        // Not JSON — fall through to CSV fallback
+        try {
+          final rows = const CsvToListConverter().convert(content, eol: '\n');
+          if (rows.length > 1) {
+            await entriesBox.clear();
+            for (var i = 1; i < rows.length; i++) {
+              final row = rows[i];
+              if (row.length >= 5) {
+                final entry = InventoryEntry(
+                  row[0].toString(),
+                  row[1].toString(),
+                  row[2].toString(),
+                  row[3].toString(),
+                  row[4].toString(),
+                );
+                entriesBox.add(entry);
+              }
+            }
+            entriesCount = rows.length - 1;
+            fetchType = 'CSV';
+          }
+        } catch (e) {
+          throw Exception('Failed to parse data as JSON or CSV: $e');
+        }
+      }
+
+      if (entriesCount > 0) {
+        // Enable sync
+        await settingsBox.put('syncEnabled', true);
+        await driveService.setSyncEnabled(true);
+        
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${t(context, 'fetch_success')} ($entriesCount $fetchType)'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+        
+        if (kDebugMode) {
+          print('AppVersionService: Successfully fetched $entriesCount entries from Google Drive ($fetchType)');
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(t(context, 'no_entries_found')),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+      
+    } catch (e) {
+      if (kDebugMode) {
+        print('AppVersionService: Google fetch failed: $e');
+      }
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${t(context, 'fetch_failed')}: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
   }
 }

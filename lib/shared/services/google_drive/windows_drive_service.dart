@@ -38,7 +38,7 @@ class WindowsDriveService {
     
     // Use same config as mobile for cross-platform sync
     const config = GoogleDriveConfig(
-      fileName: 'aa4step_inventory_data.json',
+      fileName: 'twelve_steps_backup.json',
       mimeType: 'application/json',
       scope: 'https://www.googleapis.com/auth/drive.appdata',
       parentFolder: 'appDataFolder',
@@ -102,14 +102,11 @@ class WindowsDriveService {
         return null;
       }
 
-      // Upload main file
-      final fileId = await client.upsertFile(content);
-      
-      // Create dated backup (keeps last 3 days)
+      // Create dated backup with timestamp (this is the only file we store now)
       final now = DateTime.now();
-      await createDatedBackup(content, now);
+      final fileId = await createDatedBackup(content, now);
       
-      // Clean up old backups
+      // Clean up old backups (keeps today's all, 1 per day for last 7 days)
       await cleanupOldBackups();
       
       return fileId;
@@ -223,7 +220,7 @@ class WindowsDriveService {
       
       final backups = <Map<String, dynamic>>[];
       for (final file in files) {
-        // Extract date and time from filename (e.g., aa4step_inventory_data_2025-11-23_14-30-15.json)
+        // Extract date and time from filename (e.g., twelve_steps_backup_2025-12-03_14-30-15.json)
         final regex = RegExp(r'(\d{4})-(\d{2})-(\d{2})(?:_(\d{2})-(\d{2})-(\d{2}))?');
         final match = regex.firstMatch(file.name ?? '');
         

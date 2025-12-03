@@ -12,10 +12,18 @@
 .swiftpm/
 migrate_working_dir/
 
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Personal backup files
+backup.json
+*.backup.json
+
 # OAuth Credentials - DO NOT COMMIT
 lib/shared/services/google_drive/desktop_oauth_config.dart
 
 # Local setup instructions with secrets and keystores - DO NOT COMMIT
+**/LOCAL_SETUP.md
 LOCAL_SETUP.md
 
 # Android signing - DO NOT COMMIT

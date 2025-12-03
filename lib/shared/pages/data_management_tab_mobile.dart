@@ -10,6 +10,8 @@ import '../../eighth_step/models/person.dart';
 import '../../evening_ritual/models/reflection_entry.dart';
 import '../../gratitude/models/gratitude_entry.dart';
 import '../../agnosticism/models/barrier_power_pair.dart';
+import '../../morning_ritual/models/ritual_item.dart';
+import '../../morning_ritual/models/morning_ritual_entry.dart';
 import '../localizations.dart';
 import '../utils/platform_helper.dart';
 
@@ -604,9 +606,15 @@ class _DataManagementTabState extends State<DataManagementTab> {
       final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
       final agnosticismPairs = agnosticismBox.values.map((p) => p.toJson()).toList();
 
+      final morningRitualItemsBox = Hive.box<RitualItem>('morning_ritual_items');
+      final morningRitualItems = morningRitualItemsBox.values.map((i) => i.toJson()).toList();
+
+      final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
+      final morningRitualEntries = morningRitualEntriesBox.values.map((e) => e.toJson()).toList();
+
       final now = DateTime.now().toUtc();
       final exportData = {
-        'version': '6.0', // Updated version to include gratitude and agnosticism
+        'version': '7.0', // Updated version to include morning ritual
         'exportDate': now.toIso8601String(),
         'lastModified': now.toIso8601String(), // For sync conflict detection
         'iAmDefinitions': iAmDefinitions,
@@ -615,6 +623,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
         'reflections': reflections, // Evening reflections
         'gratitude': gratitudeEntries, // Gratitude entries
         'agnosticism': agnosticismPairs, // Agnosticism barrier/power pairs
+        'morningRitualItems': morningRitualItems, // Morning ritual definitions
+        'morningRitualEntries': morningRitualEntries, // Morning ritual daily entries
       };
 
       final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
@@ -784,6 +794,28 @@ class _DataManagementTabState extends State<DataManagementTab> {
         }
       }
 
+      // Import morning ritual items if present (v7.0+)
+      if (data.containsKey('morningRitualItems')) {
+        final morningRitualItemsBox = Hive.box<RitualItem>('morning_ritual_items');
+        final itemsList = data['morningRitualItems'] as List;
+        await morningRitualItemsBox.clear();
+        for (final itemJson in itemsList) {
+          final item = RitualItem.fromJson(itemJson as Map<String, dynamic>);
+          await morningRitualItemsBox.put(item.id, item);
+        }
+      }
+
+      // Import morning ritual entries if present (v7.0+)
+      if (data.containsKey('morningRitualEntries')) {
+        final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
+        final entriesList = data['morningRitualEntries'] as List;
+        await morningRitualEntriesBox.clear();
+        for (final entryJson in entriesList) {
+          final entry = MorningRitualEntry.fromJson(entryJson as Map<String, dynamic>);
+          await morningRitualEntriesBox.put(entry.id, entry);
+        }
+      }
+
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
@@ -810,18 +842,32 @@ class _DataManagementTabState extends State<DataManagementTab> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(t(context, 'confirm_clear')),
+        content: Text(t(context, 'clear_warning')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t(context, 'cancel'))),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: Text(t(context, 'clear_all'))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(t(context, 'clear_all')),
+          ),
         ],
       ),
     );
 
     if (confirm == true) {
-      await widget.box.clear();
+      // Clear all 8 boxes for all apps (LOCAL ONLY - does NOT sync to Drive)
+      await widget.box.clear(); // entries (4th step inventory)
+      await Hive.box<IAmDefinition>('i_am_definitions').clear();
+      await Hive.box<Person>('people_box').clear();
+      await Hive.box<ReflectionEntry>('reflections_box').clear();
+      await Hive.box<GratitudeEntry>('gratitude_box').clear();
+      await Hive.box<BarrierPowerPair>('agnosticism_pairs').clear();
+      await Hive.box<RitualItem>('morning_ritual_items').clear();
+      await Hive.box<MorningRitualEntry>('morning_ritual_entries').clear();
+      
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(t(context, 'clear_all'))));
-      if (_syncEnabled && AllAppsDriveService.instance.isAuthenticated) _uploadToDrive();
+      messenger.showSnackBar(SnackBar(content: Text(t(context, 'all_cleared'))));
+      // NOTE: Intentionally NOT syncing to Drive - this is a local-only clear
     }
   }
 

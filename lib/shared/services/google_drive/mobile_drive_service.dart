@@ -99,40 +99,49 @@ class MobileDriveService {
 
   /// Upload content to Drive
   Future<void> uploadContent(String content) async {
+    if (kDebugMode) print('MobileDriveService.uploadContent() called - syncEnabled=$_syncEnabled, _driveClient=${_driveClient != null ? "set" : "null"}');
+    
     if (!_syncEnabled) {
+      if (kDebugMode) print('MobileDriveService.uploadContent() - skipped: sync not enabled');
       return;
     }
 
     if (_driveClient == null) {
+      if (kDebugMode) print('MobileDriveService.uploadContent() - _driveClient is null, trying _ensureAuthenticated');
       if (!await _ensureAuthenticated()) {
         _errorController.add('Upload failed - not authenticated');
+        if (kDebugMode) print('MobileDriveService.uploadContent() - _ensureAuthenticated failed');
         return;
       }
     }
 
     try {
-      // Create dated backup (keeps last 3 days)
+      if (kDebugMode) print('MobileDriveService.uploadContent() - creating dated backup');
+      // Create dated backup with timestamp
       await _createDatedBackup(content);
-      
-      // Also update the main file for backward compatibility
-      await _driveClient!.upsertFile(content);
       _uploadController.add('Upload successful');
+      if (kDebugMode) print('MobileDriveService.uploadContent() - success!');
     } catch (e) {
       final errorMsg = 'Upload failed: $e';
       _errorController.add(errorMsg);
+      if (kDebugMode) print('MobileDriveService.uploadContent() - error: $e');
       rethrow;
     }
   }
 
-  /// Create dated backup and clean up old backups (keep last 3 days, one per day except today)
+  /// Create dated backup and clean up old backups
+  /// Today: keep all backups with timestamps
+  /// Previous 7 days: keep only one backup per day (latest)
   Future<void> _createDatedBackup(String content) async {
     final now = DateTime.now();
+    if (kDebugMode) print('MobileDriveService._createDatedBackup() - timestamp: $now');
     
-    // Clean up today's old backups first (keep only latest per day for previous days)
+    // Create today's backup first (so it exists before cleanup)
+    final fileId = await _driveClient!.createDatedBackupFile(content, now);
+    if (kDebugMode) print('MobileDriveService._createDatedBackup() - created backup with fileId: $fileId');
+    
+    // Then clean up old backups
     await _cleanupOldBackups();
-    
-    // Create today's backup
-    await _driveClient!.createDatedBackupFile(content, now);
   }
 
   /// Clean up backups: keep last 7 days, but only one backup per day for previous days
@@ -228,7 +237,7 @@ class MobileDriveService {
       
       final backups = <Map<String, dynamic>>[];
       for (final file in files) {
-        // Extract date and time from filename (e.g., aa4step_inventory_data_2025-11-23_14-30-15.json)
+        // Extract date and time from filename (e.g., twelve_steps_backup_2025-12-03_14-30-15.json)
         final regex = RegExp(r'(\d{4})-(\d{2})-(\d{2})(?:_(\d{2})-(\d{2})-(\d{2}))?');
         final match = regex.firstMatch(file.name ?? '');
         

@@ -203,7 +203,7 @@ await _inventoryService.deleteEntry(box, index);
 2. App creates platform-appropriate Drive client
 3. Sync toggle enables/disables automatic uploads
 4. CRUD operations in ANY app trigger debounced uploads (700ms)
-5. Data stored in Drive AppData folder as `aa4step_inventory_data.json`
+5. Data stored in Drive AppData folder as `twelve_steps_backup_YYYY-MM-DD_HH-MM-SS.json`
 6. Single JSON file contains all 6 apps' data
 
 **JSON Format v7.0:**

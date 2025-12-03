@@ -166,7 +166,7 @@ class GoogleDriveCrudClient {
     return null;
   }
 
-  /// Find backup files matching a pattern (e.g., "aa4step_inventory_data_*.json")
+  /// Find backup files matching a pattern (e.g., "twelve_steps_backup_*.json")
   Future<List<drive_api.File>> findBackupFiles(String fileNamePattern) async {
     // Extract the base name without extension and wildcard
     final baseName = fileNamePattern.replaceAll('*', '').replaceAll('.json', '');
@@ -190,7 +190,7 @@ class GoogleDriveCrudClient {
     final bytes = content.codeUnits;
     final media = drive_api.Media(Stream.fromIterable([bytes]), bytes.length);
 
-    // Generate dated filename with timestamp (e.g., aa4step_inventory_data_2025-11-23_14-30-15.json)
+    // Generate dated filename with timestamp (e.g., twelve_steps_backup_2025-11-23_14-30-15.json)
     final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final timeStr = '${date.hour.toString().padLeft(2, '0')}-${date.minute.toString().padLeft(2, '0')}-${date.second.toString().padLeft(2, '0')}';
     final baseName = _config.fileName.replaceAll('.json', '');

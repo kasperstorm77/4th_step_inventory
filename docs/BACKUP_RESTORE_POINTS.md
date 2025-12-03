@@ -2,48 +2,55 @@
 
 ## Overview
 
-The app now maintains **daily dated backups** on Google Drive with a **3-day rolling history**. Users can restore from any backup point within the last 3 days. All 6 apps sync to a single backup file.
+The app maintains **timestamped backups** on Google Drive. All 6 apps sync to a single backup file with the following retention policy:
+
+- **Today**: All backups with timestamps (e.g., `twelve_steps_backup_2025-12-03_14-30-15.json`)
+- **Previous 7 days**: One backup per day (the latest from that day)
+- **Older than 7 days**: Automatically deleted
 
 ## How It Works
 
-### Automatic Dated Backups
+### Automatic Timestamped Backups
 
 When data syncs to Google Drive, the system:
 
-1. **Creates dated backup** - Saves file with date suffix (e.g., `aa4step_inventory_data_2025-11-23.json`)
-2. **Maintains current file** - Also updates `aa4step_inventory_data.json` for backward compatibility
-3. **Cleans up old backups** - Automatically deletes backups older than 3 days
+1. **Creates timestamped backup** - Saves file with date and time (e.g., `twelve_steps_backup_2025-12-03_14-30-15.json`)
+2. **Cleans up old backups** - Keeps all today's backups, consolidates previous days to one backup each, deletes backups older than 7 days
 
 ### Backup File Naming
 
 ```
-aa4step_inventory_data_2025-11-23.json  (Today's backup)
-aa4step_inventory_data_2025-11-22.json  (Yesterday's backup)
-aa4step_inventory_data_2025-11-21.json  (2 days ago backup)
-aa4step_inventory_data.json             (Current file - always latest)
+twelve_steps_backup_2025-12-03_14-30-15.json  (Today 2:30:15 PM)
+twelve_steps_backup_2025-12-03_10-15-42.json  (Today 10:15:42 AM)
+twelve_steps_backup_2025-12-02.json           (Yesterday - single backup)
+twelve_steps_backup_2025-12-01.json           (2 days ago - single backup)
+twelve_steps_backup_2025-11-30.json           (3 days ago - single backup)
+...
 ```
+
+Note: Previous days only keep one backup (the latest from that day). The timestamp is stripped during cleanup.
 
 ### Restore Point Selection
 
 Users can select which backup to restore from:
 
-- **Latest (Current)** - Restores from the main current file
-- **2025-11-23** - Restores from today's backup
-- **2025-11-22** - Restores from yesterday's backup
-- **2025-11-21** - Restores from 2 days ago backup
+- **2025-12-03 14:30** - Today's backup at 2:30 PM
+- **2025-12-03 10:15** - Today's backup at 10:15 AM  
+- **2025-12-02** - Yesterday's backup
+- **2025-12-01** - 2 days ago backup
 
 ## User Interface
 
 ### Backup Selection Card (Data Management Tab)
 
-Located above the "Clear All" button when signed into Google Drive:
+Located in the Data Management settings when signed into Google Drive:
 
 ```
 ┌─────────────────────────────────────────┐
 │ 🔄 Select Restore Point         [Refresh]│
 │                                           │
 │ ┌───────────────────────────────────────┐│
-│ │ 📅 Latest (Current)              ▼   ││
+│ │ 📅 2025-12-03 14:30              ▼   ││
 │ └───────────────────────────────────────┘│
 │                                           │
 │ [ ⬇️ Restore from Backup ]               │
@@ -51,170 +58,152 @@ Located above the "Clear All" button when signed into Google Drive:
 ```
 
 **Dropdown Options:**
-- 📅 **Latest (Current)** - Most recent sync
-- 🕒 **2025-11-23** - Today's dated backup
-- 🕒 **2025-11-22** - Yesterday's dated backup
-- 🕒 **2025-11-21** - Backup from 2 days ago
+- 🕒 **2025-12-03 14:30** - Today's latest backup
+- 🕒 **2025-12-03 10:15** - Earlier today
+- 🕒 **2025-12-02** - Yesterday's backup
+- 🕒 **2025-12-01** - 2 days ago
 
 **Refresh Button:** Reloads available backups from Drive
 
 ## Technical Implementation
 
-### Modified Services
+### JSON Format (v7.0)
 
-#### 1. `GoogleDriveCrudClient`
-New methods:
-- `findBackupFiles(String fileNamePattern)` - List all dated backup files
-- `createDatedBackupFile(String content, DateTime date)` - Create backup with date suffix
-- `readBackupFile(String fileName)` - Read specific backup by name
-
-#### 2. `MobileDriveService`
-New methods:
-- `_createDatedBackup(String content)` - Create today's backup
-- `_cleanupOldBackups()` - Delete backups older than 7 days
-- `listAvailableBackups()` - Return list of available backups with dates
-- `downloadBackupContent(String fileName)` - Download specific backup
-
-Modified methods:
-- `uploadContent()` - Now creates dated backup + updates current file
-
-#### 3. `AllAppsDriveService`
-New methods:
-- `listAvailableBackups()` - Expose backup listing
-- `downloadBackupContent(String fileName)` - Expose backup download
-
-#### 4. `DriveService` (Legacy Wrapper)
-New methods:
-- `listAvailableBackups()` - Delegate to new service
-- `downloadBackupContent(String fileName)` - Delegate to new service
-
-### UI Changes (`data_management_tab.dart`)
-
-New state variables:
-```dart
-List<Map<String, dynamic>> _availableBackups = [];
-String? _selectedBackupFileName;
-bool _loadingBackups = false;
+```json
+{
+  "version": "7.0",
+  "exportDate": "2025-12-03T14:30:15.123Z",
+  "lastModified": "2025-12-03T14:30:15.123Z",
+  "iAmDefinitions": [...],
+  "entries": [...],
+  "people": [...],
+  "reflections": [...],
+  "gratitude": [...],
+  "agnosticism": [...],
+  "morningRitualItems": [...],
+  "morningRitualEntries": [...]
+}
 ```
 
-New methods:
+### Services
+
+#### `MobileDriveService` (Android/iOS)
+- `uploadContent(content)` - Creates timestamped backup, then cleans up
+- `_createDatedBackup(content)` - Creates backup file with timestamp
+- `_cleanupOldBackups()` - Enforces retention policy
+- `listAvailableBackups()` - Returns list of available backups
+- `downloadBackupContent(fileName)` - Downloads specific backup
+
+#### `WindowsDriveService` (Windows)
+- Same methods as mobile, uses loopback OAuth for authentication
+
+#### `AllAppsDriveService` (Main entry point)
+- `listAvailableBackups()` - Delegates to platform service
+- `downloadBackupContent(fileName)` - Delegates to platform service
+
+### Filename Pattern
+
 ```dart
-Future<void> _loadAvailableBackups() // Load backups on init/sign-in
+// Generated filename format:
+final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+final timeStr = '${date.hour.toString().padLeft(2, '0')}-${date.minute.toString().padLeft(2, '0')}-${date.second.toString().padLeft(2, '0')}';
+final datedFileName = 'twelve_steps_backup_${dateStr}_$timeStr.json';
+// Example: twelve_steps_backup_2025-12-03_14-30-15.json
 ```
 
-Modified methods:
+### Cleanup Logic
+
 ```dart
-Future<void> _fetchFromGoogle() // Now uses selected backup or current file
+// Retention policy:
+// - Today: keep ALL backups (multiple timestamps)
+// - Previous 7 days: keep only ONE backup per day (latest)
+// - Older than 7 days: DELETE
+
+for (final entry in backupsByDate.entries) {
+  final date = entry.key;
+  final dateBackups = entry.value;
+  
+  if (date.isBefore(cutoffDate)) {
+    // Delete all backups older than 7 days
+    for (final backup in dateBackups) {
+      await _deleteBackup(backup['fileName']);
+    }
+  } else if (date.isBefore(today) && dateBackups.length > 1) {
+    // For previous days, keep only the newest backup
+    dateBackups.sort((a, b) => b['date'].compareTo(a['date']));
+    for (int i = 1; i < dateBackups.length; i++) {
+      await _deleteBackup(dateBackups[i]['fileName']);
+    }
+  }
+  // Today's backups: keep all (no cleanup)
+}
 ```
-
-### Localization Keys
-
-**English (`en`):**
-- `select_restore_point` - "Select Restore Point"
-- `restore_point_latest` - "Latest (Current)"
-- `restore_from_backup` - "Restore from Backup"
-- `loading_backups` - "Loading backups..."
-- `no_backups_available` - "No backups available"
-
-**Danish (`da`):**
-- `select_restore_point` - "Vælg Gendannelsespunkt"
-- `restore_point_latest` - "Seneste (Nuværende)"
-- `restore_from_backup` - "Gendan fra Backup"
-- `loading_backups` - "Indlæser backups..."
-- `no_backups_available` - "Ingen backups tilgængelige"
 
 ## Usage Flow
 
 ### Creating Backups
 
 Backups are created automatically when:
-1. User manually uploads to Drive
-2. Auto-sync triggers after data changes
-3. User adds/edits/deletes entries in any of the 6 apps
+1. Auto-sync triggers after data changes (700ms debounce)
+2. User manually backs up via Data Management
 
 ### Restoring from Backup
 
-1. **Sign in** to Google Drive (mobile only)
-2. Navigate to **Data Management** tab
-3. Card shows **"Select Restore Point"**
-4. **Dropdown** displays available backups (last 3 days)
-5. Select desired restore point
-6. Tap **"Restore from Backup"**
-7. Confirm overwrite warning
-8. Data restores from selected backup
-
-### Backup Cleanup
-
-- Runs automatically after each sync
-- Deletes backups older than **3 days**
-- Keeps exactly **3-4 backup files** (today + last 2-3 days depending on timing)
-- Current file (`aa4step_inventory_data.json`) always remains
+1. **Sign in** to Google Drive
+2. Navigate to **Settings → Data Management**
+3. **Dropdown** displays available backups
+4. Select desired restore point
+5. Tap **"Restore from Backup"**
+6. Confirm overwrite warning
+7. Data restores from selected backup
 
 ## Data Safety
 
 ### Multiple Restore Points
-- **Protection against accidental deletion** - Restore yesterday's data if today's was corrupted
+- **Protection against accidental deletion** - Restore from earlier today or yesterday
 - **Recovery from bad imports** - Roll back to pre-import state
-- **Undo sync mistakes** - Revert to earlier backup if sync caused issues
+- **Undo sync mistakes** - Revert to earlier backup
 
 ### Automatic Cleanup
-- Prevents Drive quota bloat (JSON files are small ~10-50KB each)
-- Rolling window ensures recent history without indefinite accumulation
-
-### Backward Compatibility
-- Main file (`aa4step_inventory_data.json`) still updated on every sync
-- Older app versions without backup feature continue to work normally
-- Dated backups are additional safety net, not replacement for current file
+- Prevents Drive quota bloat
+- Rolling 7-day window
+- Today keeps all changes for granular recovery
 
 ## Example Scenarios
 
 ### Scenario 1: Accidental Data Deletion
-1. User accidentally clears all entries at 2pm
+1. User accidentally clears entries at 2pm
 2. Realizes mistake at 3pm
 3. Opens Data Management → Select Restore Point
-4. Chooses yesterday's backup (`2025-11-22`)
-5. Restores → Data from yesterday is back
+4. Chooses today's 1pm backup (`2025-12-03 13:00`)
+5. Restores → Data from before deletion is back
 
-### Scenario 2: Bad JSON Import
-1. User imports corrupted JSON file that breaks data at 4pm
-2. App becomes unusable
-3. Selects restore point from earlier today (before import)
-4. Restores → Clean data from this morning restored
+### Scenario 2: Multiple Changes Today
+1. User makes changes at 9am, 12pm, and 3pm
+2. Each change creates a new timestamped backup
+3. User can restore to any of these points
+4. Tomorrow, only the 3pm backup (latest) will remain
 
-### Scenario 3: Rolling Back After Testing
-1. Sponsor suggests trying aggressive 4th step approach
-2. User enters many test entries over 2 days
-3. Decides original approach was better
-4. Restores from backup 2 days ago
-5. All test entries removed, original data intact
-
-## Future Enhancements (Not Implemented)
-
-Potential additions:
-- Longer retention (7 days, 30 days, etc.) - configurable
-- Manual backup creation with custom labels
-- Backup comparison view (see what changed between dates)
-- Backup metadata (entry count, last modified time in list)
-- Export backups to local JSON files
-- Cloud storage provider options (Dropbox, iCloud, etc.)
+### Scenario 3: Weekly Recovery
+1. User notices data issue on Monday
+2. Checks restore points - sees backups for last 7 days
+3. Restores from Thursday's backup
+4. Issue resolved
 
 ## Platform Support
 
 - ✅ **Android** - Full support
-- ✅ **iOS** - Full support
-- ❌ **Desktop** - Manual Drive sync only (no dated backups)
+- ✅ **iOS** - Full support  
+- ✅ **Windows** - Full support (loopback OAuth)
 
-Desktop users must use manual JSON export/import for backup needs.
+## Migration Notes
 
-## Testing Checklist
+### From v6.0 to v7.0
+- Added `morningRitualItems` and `morningRitualEntries` fields
+- Changed filename from `aa4step_inventory_data.json` to `twelve_steps_backup.json`
+- Removed backward compatibility main file (only timestamped backups now)
 
-- [x] Create dated backup on sync
-- [x] List available backups in dropdown
-- [x] Restore from selected backup
-- [x] Restore from "Latest" (current file)
-- [x] Cleanup old backups (>3 days)
-- [x] Refresh backups button works
-- [x] Loading state displays correctly
-- [x] Empty state when no backups
-- [x] Localization (EN/DA) displays correctly
-- [x] Backward compatibility (main file still updated)
+### Upgrading Users
+- Existing `aa4step_inventory_data*.json` files will remain but won't be updated
+- New backups use `twelve_steps_backup_*.json` naming
+- Manual migration: Export from old app version, import into new version

@@ -42,7 +42,7 @@ class AllAppsDriveService {
   void _initializePlatformService() {
     // Configure for inventory app
     const config = GoogleDriveConfig(
-      fileName: 'aa4step_inventory_data.json',
+      fileName: 'twelve_steps_backup.json',
       mimeType: 'application/json',
       scope: 'https://www.googleapis.com/auth/drive.appdata',
       parentFolder: 'appDataFolder',
@@ -102,7 +102,7 @@ class AllAppsDriveService {
     if (PlatformHelper.isWindows) {
       // Create WindowsDriveService and wrap it
       const config = GoogleDriveConfig(
-        fileName: 'aa4step_inventory_data.json',
+        fileName: 'twelve_steps_backup.json',
         mimeType: 'application/json',
         scope: 'https://www.googleapis.com/auth/drive.appdata',
         parentFolder: 'appDataFolder',
