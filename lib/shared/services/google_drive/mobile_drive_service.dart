@@ -411,10 +411,14 @@ class MobileDriveService {
 
   /// Ensure user is authenticated
   Future<bool> _ensureAuthenticated() async {
+    // If we already have a drive client (e.g., from setExternalClientFromToken), we're authenticated
+    if (_driveClient != null) {
+      return true;
+    }
+    
+    // Otherwise, check if the auth service has a signed-in user
     if (_authService.isSignedIn) {
-      if (_driveClient == null) {
-        await _createDriveClient();
-      }
+      await _createDriveClient();
       return _driveClient != null;
     }
     return false;

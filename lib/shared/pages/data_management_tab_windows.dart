@@ -44,10 +44,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
   bool _syncEnabled = false;
   bool _initializingAuth = true;
   
-  // Backup selection state (for future backup restore UI)
+  // Backup selection state
   List<Map<String, dynamic>> _availableBackups = [];
   String? _selectedBackupFileName;
-  // ignore: unused_field - reserved for future backup restore UI like mobile
   bool _loadingBackups = false;
 
   @override
@@ -55,7 +54,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
     super.initState();
     _initWindowsAuth();
     _initSettings();
-    _loadAvailableBackups();
+    // Note: _loadAvailableBackups is called from _initWindowsAuth after auth is confirmed
   }
 
   Future<void> _initWindowsAuth() async {
@@ -69,6 +68,11 @@ class _DataManagementTabState extends State<DataManagementTab> {
           _isSignedIn = signedIn;
           _initializingAuth = false;
         });
+        
+        // Load backups after auth is confirmed
+        if (signedIn) {
+          _loadAvailableBackups();
+        }
       }
     } catch (e) {
       if (kDebugMode) print('Windows auth init failed: $e');
@@ -220,6 +224,74 @@ class _DataManagementTabState extends State<DataManagementTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${t(context, 'sync_failed')}: $e')),
+        );
+      }
+    }
+  }
+
+  /// Restore data from selected backup
+  Future<void> _restoreFromBackup() async {
+    if (!_isSignedIn) return;
+
+    // Show warning dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t(context, 'warning')),
+        content: Text(t(context, 'import_warning')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t(context, 'cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(t(context, 'continue')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      String? content;
+      
+      if (_selectedBackupFileName == null) {
+        // Download latest (most recent backup)
+        content = await AllAppsDriveService.instance.downloadBackupContent(
+          _availableBackups.isNotEmpty 
+            ? _availableBackups.first['fileName'] as String
+            : '',
+        );
+      } else {
+        // Download selected backup
+        content = await AllAppsDriveService.instance.downloadBackupContent(_selectedBackupFileName!);
+      }
+
+      if (content == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t(context, 'no_backup_found'))),
+          );
+        }
+        return;
+      }
+
+      final data = jsonDecode(content) as Map<String, dynamic>;
+      await _importData(data);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t(context, 'import_success'))),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print('Restore failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${t(context, 'import_failed')}: $e')),
         );
       }
     }
@@ -513,6 +585,104 @@ class _DataManagementTabState extends State<DataManagementTab> {
         ),
         
         const SizedBox(height: 24),
+        
+        // Backup selection dropdown and restore button (only show when signed in)
+        if (_isSignedIn) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.restore, color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        t(context, 'select_restore_point'),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const Spacer(),
+                      if (_loadingBackups)
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else
+                        IconButton(
+                          icon: const Icon(Icons.refresh),
+                          onPressed: _loadAvailableBackups,
+                          tooltip: t(context, 'refresh_backups'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_availableBackups.isEmpty && !_loadingBackups)
+                    Text(
+                      t(context, 'no_backups_available'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey,
+                      ),
+                    )
+                  else
+                    DropdownButtonFormField<String>(
+                      value: _selectedBackupFileName,
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        labelText: t(context, 'restore_point_latest'),
+                      ),
+                      items: [
+                        // Add "Latest" option (uses current file, not dated backup)
+                        DropdownMenuItem<String>(
+                          value: null,
+                          child: Row(
+                            children: [
+                              Icon(Icons.cloud, size: 20, color: Theme.of(context).colorScheme.primary),
+                              const SizedBox(width: 8),
+                              Text(t(context, 'restore_point_latest')),
+                            ],
+                          ),
+                        ),
+                        // Add dated backups
+                        ..._availableBackups.map((backup) {
+                          final displayDate = backup['displayDate'] as String;
+                          final fileName = backup['fileName'] as String;
+                          return DropdownMenuItem<String>(
+                            value: fileName,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.history, size: 20, color: Colors.blue),
+                                const SizedBox(width: 8),
+                                Text(displayDate),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedBackupFileName = value;
+                        });
+                      },
+                    ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: _restoreFromBackup,
+                    icon: const Icon(Icons.download),
+                    label: Text(t(context, 'restore_from_backup')),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         
         // Clear all data button
         const Divider(),
