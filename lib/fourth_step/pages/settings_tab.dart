@@ -1,9 +1,15 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import '../../fourth_step/models/inventory_entry.dart';
 import '../../fourth_step/models/i_am_definition.dart';
 import '../services/i_am_service.dart';
 import '../../shared/localizations.dart';
+import '../../shared/utils/platform_helper.dart';
 
 class SettingsTab extends StatefulWidget {
   final Box<InventoryEntry> box;
@@ -29,6 +35,22 @@ class _SettingsTabState extends State<SettingsTab> {
 
           return Column(
             children: [
+              // CSV Export section
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.download),
+                    title: Text(t(context, 'export_csv')),
+                    subtitle: Text(t(context, 'export_csv_description')),
+                    trailing: ElevatedButton(
+                      onPressed: () => _exportCsv(context),
+                      child: Text(t(context, 'export')),
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(),
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
@@ -237,5 +259,108 @@ class _SettingsTabState extends State<SettingsTab> {
         ],
       ),
     );
+  }
+
+  /// Escape a value for CSV (handle commas, quotes, newlines)
+  String _escapeCsvValue(String? value) {
+    if (value == null || value.isEmpty) return '';
+    // If value contains comma, quote, or newline, wrap in quotes and escape quotes
+    if (value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r')) {
+      return '"${value.replaceAll('"', '""')}"';
+    }
+    return value;
+  }
+
+  /// Get category display name
+  String _getCategoryName(BuildContext context, InventoryCategory category) {
+    switch (category) {
+      case InventoryCategory.resentment:
+        return t(context, 'category_resentment');
+      case InventoryCategory.fear:
+        return t(context, 'category_fear');
+      case InventoryCategory.harms:
+        return t(context, 'category_harms');
+      case InventoryCategory.sexualHarms:
+        return t(context, 'category_sexual_harms');
+    }
+  }
+
+  Future<void> _exportCsv(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    
+    try {
+      final entries = widget.box.values.toList();
+      final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
+      
+      if (entries.isEmpty) {
+        messenger.showSnackBar(SnackBar(content: Text(t(context, 'no_entries'))));
+        return;
+      }
+
+      // Build CSV content
+      final buffer = StringBuffer();
+      
+      // Header row
+      buffer.writeln([
+        _escapeCsvValue(t(context, 'category')),
+        _escapeCsvValue(t(context, 'field1_header')),
+        _escapeCsvValue(t(context, 'i_am')),
+        _escapeCsvValue(t(context, 'field2_header')),
+        _escapeCsvValue(t(context, 'affect_my')),
+        _escapeCsvValue(t(context, 'my_take')),
+        _escapeCsvValue(t(context, 'shortcomings')),
+      ].join(','));
+
+      // Data rows
+      for (final entry in entries) {
+        final category = entry.effectiveCategory;
+        final iAmName = _iAmService.getNameById(iAmBox, entry.iAmId) ?? '';
+        
+        buffer.writeln([
+          _escapeCsvValue(_getCategoryName(context, category)),
+          _escapeCsvValue(entry.resentment),
+          _escapeCsvValue(iAmName),
+          _escapeCsvValue(entry.reason),
+          _escapeCsvValue(entry.affect),
+          _escapeCsvValue(entry.part),
+          _escapeCsvValue(entry.defect),
+        ].join(','));
+      }
+
+      final csvString = buffer.toString();
+      final bytes = Uint8List.fromList(utf8.encode(csvString));
+      final fileName = 'fourth_step_export_${DateTime.now().millisecondsSinceEpoch}.csv';
+
+      String? savedPath;
+
+      if (PlatformHelper.isMobile) {
+        // Mobile: Use flutter_file_dialog
+        final params = SaveFileDialogParams(
+          data: bytes,
+          fileName: fileName,
+        );
+        savedPath = await FlutterFileDialog.saveFile(params: params);
+      } else if (PlatformHelper.isDesktop) {
+        // Desktop: Use file_picker
+        savedPath = await FilePicker.platform.saveFile(
+          dialogTitle: t(context, 'export_csv'),
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: ['csv'],
+        );
+
+        if (savedPath != null) {
+          await File(savedPath).writeAsBytes(bytes);
+        }
+      }
+
+      if (savedPath != null) {
+        if (!context.mounted) return;
+        messenger.showSnackBar(SnackBar(content: Text('${t(context, 'csv_saved')}: $savedPath')));
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('${t(context, 'export_failed')}: $e')));
+    }
   }
 }

@@ -40,6 +40,7 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
 
   int? editingIndex;
   String? selectedIAmId;  // Selected I Am definition ID
+  InventoryCategory selectedCategory = InventoryCategory.resentment;  // Selected category
   bool get isEditing => editingIndex != null;
 
   @override
@@ -75,6 +76,7 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
       setState(() {
         editingIndex = index;
         selectedIAmId = entry.iAmId;
+        selectedCategory = entry.effectiveCategory;
         _resentmentController.text = entry.safeResentment;
         _reasonController.text = entry.safeReason;
         _affectController.text = entry.safeAffect;
@@ -89,6 +91,7 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
     setState(() {
       editingIndex = null;
       selectedIAmId = null;
+      selectedCategory = InventoryCategory.resentment;
       _resentmentController.clear();
       _reasonController.clear();
       _affectController.clear();
@@ -106,6 +109,7 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
       _partController.text,
       _defectController.text,
       iAmId: selectedIAmId,
+      category: selectedCategory,
     );
     
     if (isEditing && editingIndex != null) {
@@ -269,9 +273,15 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
             defectController: _defectController,
             editingIndex: editingIndex,
             selectedIAmId: selectedIAmId,
+            selectedCategory: selectedCategory,
             onIAmChanged: (String? id) {
               setState(() {
                 selectedIAmId = id;
+              });
+            },
+            onCategoryChanged: (InventoryCategory category) {
+              setState(() {
+                selectedCategory = category;
               });
             },
             onSave: _saveEntry,

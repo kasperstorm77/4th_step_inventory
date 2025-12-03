@@ -45,8 +45,6 @@ class _DataManagementTabState extends State<DataManagementTab> {
   GoogleSignInAccount? _currentUser;
 
   bool _syncEnabled = false;
-  bool _interactiveSignIn = false;
-  bool _interactiveSignInRequested = false;
   bool _signingInProgress = false;
   bool _promptScheduled = false;
 
@@ -243,11 +241,6 @@ class _DataManagementTabState extends State<DataManagementTab> {
     }
     
     try {
-      // Mark that an interactive sign-in was requested. We keep both the
-      // 'requested' and 'interactive' flags to be resilient to timing where
-      // `onCurrentUserChanged` may fire before/after this method resumes.
-      _interactiveSignInRequested = true;
-      _interactiveSignIn = true;
       _signingInProgress = true; // Prevent state updates during sign-in
       
       final account = await _googleSignIn!.signIn();
@@ -271,20 +264,10 @@ class _DataManagementTabState extends State<DataManagementTab> {
         // Load available backups after sign-in
         _loadAvailableBackups();
       }
-      // Do NOT clear the interactive/requested flags here — they are
-      // cleared by `_maybePromptFetchAfterInteractiveSignIn` after the
-      // prompt completes. If account is null (user cancelled), clear them
-      // now so future sign-ins work normally.
-      if (account == null) {
-        _interactiveSignIn = false;
-        _interactiveSignInRequested = false;
-      }
     } catch (e) {
       _signingInProgress = false; // Clear flag on error
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('${t(context, 'sign_in_failed')}: ${e.toString().split(',').first}')));
-      _interactiveSignIn = false;
-      _interactiveSignInRequested = false;
     }
   }
 
@@ -357,16 +340,10 @@ class _DataManagementTabState extends State<DataManagementTab> {
           }
         }
       }
-
-      // Clear the interactive/requested flags now we've completed the flow.
-      _interactiveSignIn = false;
-      _interactiveSignInRequested = false;
     } catch (e) {
       // Log error but DON'T reset _lastPromptedAccountId - this was causing
       // the dialog to appear every time the user visited settings.
       if (kDebugMode) print('_maybePromptFetchAfterInteractiveSignIn: Error showing dialog: $e');
-      _interactiveSignIn = false;
-      _interactiveSignInRequested = false;
     }
   }
 
@@ -405,10 +382,6 @@ class _DataManagementTabState extends State<DataManagementTab> {
       // Clear the client and disable sync
       AllAppsDriveService.instance.clearClient();
       AllAppsDriveService.instance.setSyncEnabled(false);
-      // Reset interactive sign-in tracking so a subsequent sign-in will
-      // re-prompt the user even if it's the same account in this session.
-      _interactiveSignIn = false;
-      _interactiveSignInRequested = false;
       _lastPromptedAccountId = null;
     });
   }

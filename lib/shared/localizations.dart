@@ -8,6 +8,10 @@ final Map<String, Map<String, String>> localizedValues = {
     'settings_title': 'Settings',
     'data_management': 'Data Management',
     'export_json': 'Export to JSON',
+    'export_csv': 'Export to CSV',
+    'export_csv_description': 'Export 4th Step inventory as a spreadsheet file',
+    'export': 'Export',
+    'csv_saved': 'CSV saved to',
     'import_json': 'Import from JSON',
     'clear_all': 'Clear All Entries',
     'cancel': 'Cancel',
@@ -86,6 +90,31 @@ final Map<String, Map<String, String>> localizedValues = {
     'resentment': 'I\'m resentful at',
     'switch_list_view': 'Switch to List View',
     'switch_table_view': 'Switch to Table View',
+    // 4th Step Category labels
+    'category': 'Category',
+    'category_resentment': 'Resentments',
+    'category_fear': 'Fear',
+    'category_harms': 'Harms (not sexual)',
+    'category_sexual_harms': 'Harms (sexual)',
+    // Resentment category (default)
+    'resentment_field1': 'I\'m resentful at',
+    'resentment_field2': 'The cause',
+    // Fear category
+    'fear_field1': 'I\'m fearful of',
+    'fear_field2': 'Why do I have the fear?',
+    // Harms category
+    'harms_field1': 'Who did I hurt?',
+    'harms_field2': 'What did I do?',
+    // Sexual harms category
+    'sexual_harms_field1': 'Who did I hurt?',
+    'sexual_harms_field2': 'What did I do?',
+    // Common fields (same for all categories)
+    'affects_my': 'Affects my',
+    'my_part': 'My part',
+    'shortcoming_field': 'Shortcoming(s)',
+    // Table view generic headers
+    'field1_header': 'Who/What',
+    'field2_header': 'Cause/Action',
     // Error and status messages
     'failed_load_backups': 'Failed to load backups',
     'sign_in_no_token': 'Google sign-in succeeded but no access token was returned',
@@ -336,6 +365,10 @@ final Map<String, Map<String, String>> localizedValues = {
     'settings_title': 'Indstillinger',
     'data_management': 'Datahåndtering',
     'export_json': 'Eksporter til JSON',
+    'export_csv': 'Eksporter til CSV',
+    'export_csv_description': 'Eksporter 4. trin inventar som regnearksfil',
+    'export': 'Eksporter',
+    'csv_saved': 'CSV gemt til',
     'import_json': 'Importer fra JSON',
     'clear_all': 'Slet Alle Indtastninger',
     'cancel': 'Annuller',
@@ -414,6 +447,31 @@ final Map<String, Map<String, String>> localizedValues = {
     'resentment': 'Jeg er vred på',
     'switch_list_view': 'Skift til Listevisning',
     'switch_table_view': 'Skift til Tabelvisning',
+    // 4th Step Category labels
+    'category': 'Kategori',
+    'category_resentment': 'Nag',
+    'category_fear': 'Frygt',
+    'category_harms': 'Skader (ikke seksuelle)',
+    'category_sexual_harms': 'Skader (seksuelle)',
+    // Resentment category (default)
+    'resentment_field1': 'Jeg er vred på',
+    'resentment_field2': 'Årsagen',
+    // Fear category
+    'fear_field1': 'Jeg er bange for',
+    'fear_field2': 'Hvorfor har jeg frygten?',
+    // Harms category
+    'harms_field1': 'Hvem skadede jeg?',
+    'harms_field2': 'Hvad gjorde jeg?',
+    // Sexual harms category
+    'sexual_harms_field1': 'Hvem skadede jeg?',
+    'sexual_harms_field2': 'Hvad gjorde jeg?',
+    // Common fields (same for all categories)
+    'affects_my': 'Påvirker mit/min',
+    'my_part': 'Min del',
+    'shortcoming_field': 'Karakterbrist(er)',
+    // Table view generic headers
+    'field1_header': 'Hvem/Hvad',
+    'field2_header': 'Årsag/Handling',
     // Error and status messages
     'failed_load_backups': 'Kunne ikke indlæse backups',
     'sign_in_no_token': 'Google login lykkedes, men ingen adgangstoken blev returneret',

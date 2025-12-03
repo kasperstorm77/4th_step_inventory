@@ -382,10 +382,10 @@ class _DataManagementTabState extends State<DataManagementTab> {
         final entry = InventoryEntry.fromJson(entryJson as Map<String, dynamic>);
         await entriesBox.add(entry);
         if (kDebugMode && entry.iAmId != null) {
-          print('Windows import: Added entry with iAmId: ${entry.iAmId}');
+          debugPrint('Windows import: Added entry with iAmId: ${entry.iAmId}');
         }
       }
-      if (kDebugMode) print('Windows import: Entries box now has ${entriesBox.length} entries');
+      if (kDebugMode) debugPrint('Windows import: Entries box now has ${entriesBox.length} entries');
     }
 
     if (data.containsKey('people')) {

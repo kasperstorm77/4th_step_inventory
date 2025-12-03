@@ -14,7 +14,9 @@ class FormTab extends StatefulWidget {
   final TextEditingController defectController;
   final int? editingIndex;
   final String? selectedIAmId;
+  final InventoryCategory selectedCategory;
   final ValueChanged<String?>? onIAmChanged;
+  final ValueChanged<InventoryCategory>? onCategoryChanged;
   final VoidCallback? onSave;
   final VoidCallback? onCancel;
 
@@ -28,7 +30,9 @@ class FormTab extends StatefulWidget {
     required this.defectController,
     this.editingIndex,
     this.selectedIAmId,
+    this.selectedCategory = InventoryCategory.resentment,
     this.onIAmChanged,
+    this.onCategoryChanged,
     this.onSave,
     this.onCancel,
   });
@@ -40,13 +44,66 @@ class FormTab extends StatefulWidget {
 }
 
 class _FormTabState extends State<FormTab> {
-  String? _focusedField;
+  /// Get the localization key for field 1 based on category
+  String _getField1LabelKey(InventoryCategory category) {
+    switch (category) {
+      case InventoryCategory.resentment:
+        return 'resentment_field1';
+      case InventoryCategory.fear:
+        return 'fear_field1';
+      case InventoryCategory.harms:
+        return 'harms_field1';
+      case InventoryCategory.sexualHarms:
+        return 'sexual_harms_field1';
+    }
+  }
+
+  /// Get the localization key for field 2 based on category
+  String _getField2LabelKey(InventoryCategory category) {
+    switch (category) {
+      case InventoryCategory.resentment:
+        return 'resentment_field2';
+      case InventoryCategory.fear:
+        return 'fear_field2';
+      case InventoryCategory.harms:
+        return 'harms_field2';
+      case InventoryCategory.sexualHarms:
+        return 'sexual_harms_field2';
+    }
+  }
+
+  /// Get the localization key for category name
+  String _getCategoryLabelKey(InventoryCategory category) {
+    switch (category) {
+      case InventoryCategory.resentment:
+        return 'category_resentment';
+      case InventoryCategory.fear:
+        return 'category_fear';
+      case InventoryCategory.harms:
+        return 'category_harms';
+      case InventoryCategory.sexualHarms:
+        return 'category_sexual_harms';
+    }
+  }
+
+  /// Get icon for category
+  IconData _getCategoryIcon(InventoryCategory category) {
+    switch (category) {
+      case InventoryCategory.resentment:
+        return Icons.sentiment_very_dissatisfied;
+      case InventoryCategory.fear:
+        return Icons.warning_amber;
+      case InventoryCategory.harms:
+        return Icons.heart_broken;
+      case InventoryCategory.sexualHarms:
+        return Icons.privacy_tip;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
     final iAmService = IAmService();
-    // Use the centralized service to find I Am definition
     final selectedIAm = iAmService.findById(iAmBox, widget.selectedIAmId);
 
     return Padding(
@@ -56,14 +113,35 @@ class _FormTabState extends State<FormTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildTextField(context, widget.resentmentController, 'resentment'),
+            // Category selector
+            _buildCategorySelector(context),
+            const SizedBox(height: 16),
             
-            // I Am + Reason (Cause) section
-            _buildIAmWithReasonField(context, iAmBox, selectedIAm, widget.reasonController),
+            // Field 1: Resentment / Fear / Who did I hurt
+            _buildTextField(
+              context, 
+              widget.resentmentController, 
+              _getField1LabelKey(widget.selectedCategory),
+            ),
             
-            _buildTextField(context, widget.affectController, 'affect_my'),
-            _buildTextField(context, widget.partController, 'my_take', showTooltip: true),
-            _buildTextField(context, widget.defectController, 'shortcomings'),
+            // I Am + Field 2 (Reason/Cause/What did I do)
+            _buildIAmWithReasonField(
+              context, 
+              iAmBox, 
+              selectedIAm, 
+              widget.reasonController,
+              _getField2LabelKey(widget.selectedCategory),
+            ),
+            
+            // Field 3: Affects my (same for all categories)
+            _buildTextField(context, widget.affectController, 'affects_my'),
+            
+            // Field 4: My part (same for all categories)
+            _buildTextField(context, widget.partController, 'my_part', showTooltip: true),
+            
+            // Field 5: Shortcoming(s) (same for all categories)
+            _buildTextField(context, widget.defectController, 'shortcoming_field'),
+            
             const SizedBox(height: 20),
             ElevatedButton.icon(
               icon: Icon(widget.isEditing ? Icons.save : Icons.add),
@@ -84,10 +162,64 @@ class _FormTabState extends State<FormTab> {
     );
   }
 
-  Widget _buildIAmWithReasonField(BuildContext context, Box<IAmDefinition> iAmBox, 
-      IAmDefinition? selectedIAm, TextEditingController reasonController) {
-    final isFocused = _focusedField == 'reason';
-    
+  Widget _buildCategorySelector(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: Text(
+              t(context, 'category'),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Row(
+              children: InventoryCategory.values.map((category) {
+                final isSelected = widget.selectedCategory == category;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: ChoiceChip(
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        widget.onCategoryChanged?.call(category);
+                      }
+                    },
+                    avatar: Icon(
+                      _getCategoryIcon(category),
+                      size: 18,
+                      color: isSelected 
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    label: Text(t(context, _getCategoryLabelKey(category))),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIAmWithReasonField(
+    BuildContext context, 
+    Box<IAmDefinition> iAmBox, 
+    IAmDefinition? selectedIAm, 
+    TextEditingController reasonController,
+    String labelKey,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -161,31 +293,24 @@ class _FormTabState extends State<FormTab> {
             ),
           
           // Reason field with person icon
-          Focus(
-            onFocusChange: (hasFocus) {
-              setState(() {
-                _focusedField = hasFocus ? 'reason' : null;
-              });
-            },
-            child: TextField(
-              controller: reasonController,
-              minLines: isFocused ? 2 : 1,
-              maxLines: isFocused ? 5 : 1,
-              keyboardType: isFocused ? TextInputType.multiline : TextInputType.text,
-              decoration: InputDecoration(
-                labelText: t(context, 'reason'),
-                border: const OutlineInputBorder(),
-                alignLabelWithHint: isFocused,
-                prefixIcon: IconButton(
-                  icon: Icon(
-                    selectedIAm == null ? Icons.person_add_outlined : Icons.person,
-                    color: selectedIAm == null 
-                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.6)
-                      : Theme.of(context).colorScheme.primary,
-                  ),
-                  tooltip: t(context, 'select_i_am'),
-                  onPressed: () => _showIAmSelection(context, iAmBox),
+          TextField(
+            controller: reasonController,
+            minLines: 1,
+            maxLines: 5,
+            keyboardType: TextInputType.multiline,
+            decoration: InputDecoration(
+              labelText: t(context, labelKey),
+              border: const OutlineInputBorder(),
+              alignLabelWithHint: true,
+              prefixIcon: IconButton(
+                icon: Icon(
+                  selectedIAm == null ? Icons.person_add_outlined : Icons.person,
+                  color: selectedIAm == null 
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.6)
+                    : Theme.of(context).colorScheme.primary,
                 ),
+                tooltip: t(context, 'select_i_am'),
+                onPressed: () => _showIAmSelection(context, iAmBox),
               ),
             ),
           ),
@@ -308,53 +433,43 @@ class _FormTabState extends State<FormTab> {
     );
   }
 
-
   Widget _buildTextField(
       BuildContext context, TextEditingController controller, String key, {bool showTooltip = false}) {
-    final isFocused = _focusedField == key;
-    
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Focus(
-        onFocusChange: (hasFocus) {
-          setState(() {
-            _focusedField = hasFocus ? key : null;
-          });
-        },
-        child: TextField(
-          controller: controller,
-          minLines: isFocused ? 2 : 1,
-          maxLines: isFocused ? 5 : 1,
-          keyboardType: isFocused ? TextInputType.multiline : TextInputType.text,
-          decoration: InputDecoration(
-            labelText: t(context, key),
-            border: const OutlineInputBorder(),
-            alignLabelWithHint: isFocused,
-            suffixIcon: showTooltip
-              ? GestureDetector(
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text(t(context, key)),
-                        content: Text(t(context, 'part_tooltip')),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: Text(t(context, 'close')),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  child: const Icon(
-                    Icons.help_outline,
-                    size: 20,
-                    color: Colors.grey,
-                  ),
-                )
-              : null,
-          ),
+      child: TextField(
+        controller: controller,
+        minLines: 1,
+        maxLines: 5,
+        keyboardType: TextInputType.multiline,
+        decoration: InputDecoration(
+          labelText: t(context, key),
+          border: const OutlineInputBorder(),
+          alignLabelWithHint: true,
+          suffixIcon: showTooltip
+            ? GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(t(context, key)),
+                      content: Text(t(context, 'part_tooltip')),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Text(t(context, 'close')),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: const Icon(
+                  Icons.help_outline,
+                  size: 20,
+                  color: Colors.grey,
+                ),
+              )
+            : null,
         ),
       ),
     );

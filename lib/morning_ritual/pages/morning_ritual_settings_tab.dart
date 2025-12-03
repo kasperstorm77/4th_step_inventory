@@ -151,7 +151,9 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // Using value (not initialValue) because we need dynamic updates via setDialogState
                   DropdownButtonFormField<RitualItemType>(
+                    // ignore: deprecated_member_use
                     value: selectedType,
                     decoration: InputDecoration(
                       labelText: t(context, 'morning_ritual_item_type'),

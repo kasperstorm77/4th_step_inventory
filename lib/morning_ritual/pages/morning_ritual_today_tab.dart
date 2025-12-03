@@ -168,12 +168,12 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
 
   Future<void> _playAlarm() async {
     // Check if device has vibrator and use strong pattern
-    final hasVibrator = await Vibration.hasVibrator() ?? false;
-    if (hasVibrator) {
+    final hasVibrator = await Vibration.hasVibrator();
+    if (hasVibrator == true) {
       // Vibrate with pattern: vibrate 500ms, pause 200ms, repeat 3 times
       // Pattern: [pause, vibrate, pause, vibrate, pause, vibrate]
-      final hasAmplitude = await Vibration.hasAmplitudeControl() ?? false;
-      if (hasAmplitude) {
+      final hasAmplitude = await Vibration.hasAmplitudeControl();
+      if (hasAmplitude == true) {
         // Use maximum amplitude for clear feedback
         await Vibration.vibrate(duration: 500, amplitude: 255);
         await Future.delayed(const Duration(milliseconds: 300));

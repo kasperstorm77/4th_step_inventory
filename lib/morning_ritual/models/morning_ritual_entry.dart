@@ -45,7 +45,7 @@ class RitualItemRecord {
     if (originalDurationSeconds == null) return '';
     final minutes = originalDurationSeconds! ~/ 60;
     final seconds = originalDurationSeconds! % 60;
-    return '${minutes}:${seconds.toString().padLeft(2, '0')}';
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
   Map<String, dynamic> toJson() => {

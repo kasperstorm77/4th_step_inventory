@@ -24,7 +24,6 @@ class ListTab extends StatefulWidget {
 }
 
 class _ListTabState extends State<ListTab> {
-  bool showTable = false;
   late final Box<IAmDefinition> _iAmBox;
   final _iAmService = IAmService();
 
@@ -54,125 +53,89 @@ class _ListTabState extends State<ListTab> {
     return _iAmService.getNameById(_iAmBox, iAmId);
   }
 
+  /// Get the localization key for field 1 based on category
+  String _getField1LabelKey(InventoryCategory category) {
+    switch (category) {
+      case InventoryCategory.resentment:
+        return 'resentment_field1';
+      case InventoryCategory.fear:
+        return 'fear_field1';
+      case InventoryCategory.harms:
+        return 'harms_field1';
+      case InventoryCategory.sexualHarms:
+        return 'sexual_harms_field1';
+    }
+  }
+
+  /// Get the localization key for field 2 based on category
+  String _getField2LabelKey(InventoryCategory category) {
+    switch (category) {
+      case InventoryCategory.resentment:
+        return 'resentment_field2';
+      case InventoryCategory.fear:
+        return 'fear_field2';
+      case InventoryCategory.harms:
+        return 'harms_field2';
+      case InventoryCategory.sexualHarms:
+        return 'sexual_harms_field2';
+    }
+  }
+
+  /// Get the localization key for category name
+  String _getCategoryLabelKey(InventoryCategory category) {
+    switch (category) {
+      case InventoryCategory.resentment:
+        return 'category_resentment';
+      case InventoryCategory.fear:
+        return 'category_fear';
+      case InventoryCategory.harms:
+        return 'category_harms';
+      case InventoryCategory.sexualHarms:
+        return 'category_sexual_harms';
+    }
+  }
+
+  /// Get icon for category
+  IconData _getCategoryIcon(InventoryCategory category) {
+    switch (category) {
+      case InventoryCategory.resentment:
+        return Icons.sentiment_very_dissatisfied;
+      case InventoryCategory.fear:
+        return Icons.warning_amber;
+      case InventoryCategory.harms:
+        return Icons.heart_broken;
+      case InventoryCategory.sexualHarms:
+        return Icons.privacy_tip;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Padding(
       padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              IconButton(
-                icon: Icon(showTable ? Icons.list : Icons.table_chart),
-                tooltip: showTable
-                    ? t(context, 'switch_list_view')
-                    : t(context, 'switch_table_view'),
-                onPressed: () => setState(() => showTable = !showTable),
-              ),
-            ],
-          ),
-          Expanded(
-            child: ValueListenableBuilder(
-              valueListenable: widget.box.listenable(),
-              builder: (context, Box<InventoryEntry> box, _) {
-                // Also listen to I Am box changes for name lookups
-                return ValueListenableBuilder(
-                  valueListenable: _iAmBox.listenable(),
-                  builder: (context, Box<IAmDefinition> iAmBox, _) {
-                if (box.isEmpty) {
-                  return Center(child: Text(t(context, 'no_entries')));
-                }
+      child: ValueListenableBuilder(
+        valueListenable: widget.box.listenable(),
+        builder: (context, Box<InventoryEntry> box, _) {
+          // Also listen to I Am box changes for name lookups
+          return ValueListenableBuilder(
+            valueListenable: _iAmBox.listenable(),
+            builder: (context, Box<IAmDefinition> iAmBox, _) {
+              if (box.isEmpty) {
+                return Center(child: Text(t(context, 'no_entries')));
+              }
 
-                final entries = box.values.toList().reversed.toList();
+              final entries = box.values.toList().reversed.toList();
 
-                if (showTable) {
-                  final headerColor =
-                      theme.colorScheme.primaryContainer.withValues(alpha: 0.8);
-                  final rowBaseColor =
-                      theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25);
-
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      final columnWidth = constraints.maxWidth / 6;
-
-                      return Column(
-                        children: [
-                          Container(
-                            color: headerColor,
-                            child: Row(
-                              children: [
-                                for (final header in [
-                                  t(context, 'resentment'),
-                                  t(context, 'i_am'),
-                                  t(context, 'reason'),
-                                  t(context, 'affect_my'),
-                                  t(context, 'my_take'),
-                                  t(context, 'shortcomings'),
-                                ])
-                                  Container(
-                                    width: columnWidth,
-                                    padding: const EdgeInsets.all(8),
-                                    child: Text(
-                                      header,
-                                      softWrap: true,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
-                              child: Column(
-                                children: List.generate(entries.length, (i) {
-                                  final e = entries[i];
-                                  final rowColor = (i % 2 == 0)
-                                      ? rowBaseColor.withValues(alpha: 0.7)
-                                      : rowBaseColor.withValues(alpha: 0.4);
-                                  final iAmName = _getIAmName(e.iAmId) ?? '-';
-
-                                  return Container(
-                                    color: rowColor,
-                                    child: Row(
-                                      children: [
-                                        for (final text in [
-                                          e.safeResentment,
-                                          iAmName,
-                                          e.safeReason,
-                                          e.safeAffect,
-                                          e.myTake ?? '',
-                                          e.shortcomings ?? ''
-                                        ])
-                                          Container(
-                                            width: columnWidth,
-                                            padding: const EdgeInsets.all(8),
-                                            child: Text(text, softWrap: true),
-                                          ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                }
-
-                return ListView.builder(
+              return ListView.builder(
                   padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
                   itemCount: entries.length,
                   itemBuilder: (context, index) {
                     final e = entries[index];
                     final reversedIndex = box.length - 1 - index;
                     final iAmName = _getIAmName(e.iAmId);
+                    final category = e.effectiveCategory;
 
                     return Card(
                       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -181,7 +144,23 @@ class _ListTabState extends State<ListTab> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("${t(context, 'resentment')}: ${e.safeResentment}"),
+                            // Category chip
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: Chip(
+                                avatar: Icon(
+                                  _getCategoryIcon(category),
+                                  size: 16,
+                                ),
+                                label: Text(
+                                  t(context, _getCategoryLabelKey(category)),
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                            Text("${t(context, _getField1LabelKey(category))}: ${e.safeResentment}"),
                             if (iAmName != null)
                               Text("${t(context, 'i_am')}: $iAmName",
                                 style: TextStyle(
@@ -189,10 +168,10 @@ class _ListTabState extends State<ListTab> {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            Text("${t(context, 'reason')}: ${e.safeReason}"),
-                            Text("${t(context, 'affect_my')}: ${e.safeAffect}"),
-                            Text("${t(context, 'my_take')}: ${e.myTake ?? ''}"),
-                            Text("${t(context, 'shortcomings')}: ${e.shortcomings ?? ''}"),
+                            Text("${t(context, _getField2LabelKey(category))}: ${e.safeReason}"),
+                            Text("${t(context, 'affects_my')}: ${e.safeAffect}"),
+                            Text("${t(context, 'my_part')}: ${e.myTake ?? ''}"),
+                            Text("${t(context, 'shortcoming_field')}: ${e.shortcomings ?? ''}"),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
@@ -246,20 +225,17 @@ class _ListTabState extends State<ListTab> {
                                     }
                                   },
                                 ),
-                              ],
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
       ),
     );
   }

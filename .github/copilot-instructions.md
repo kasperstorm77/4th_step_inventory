@@ -33,7 +33,7 @@ Examples:
 - Gratitude: `gratitude_box` (Box<GratitudeEntry>)
 - Agnosticism: `agnosticism_pairs` (Box<BarrierPowerPair>)
 
-**Hive Type IDs** (NEVER reuse - 0-13 assigned):
+**Hive Type IDs** (NEVER reuse - 0-14 assigned):
 | typeId | Model | App |
 |--------|-------|-----|
 | 0 | InventoryEntry | 4th Step |
@@ -50,6 +50,7 @@ Examples:
 | 11 | RitualItemStatus | Morning Ritual |
 | 12 | RitualItemRecord | Morning Ritual |
 | 13 | MorningRitualEntry | Morning Ritual |
+| 14 | InventoryCategory | 4th Step |
 
 ## Critical Developer Workflows
 

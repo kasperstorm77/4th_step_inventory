@@ -31,6 +31,7 @@ void main() async {
   await Hive.initFlutter();
 
   Hive.registerAdapter(InventoryEntryAdapter());
+  Hive.registerAdapter(InventoryCategoryAdapter());
   Hive.registerAdapter(IAmDefinitionAdapter());
   Hive.registerAdapter(AppEntryAdapter());
   Hive.registerAdapter(PersonAdapter());
