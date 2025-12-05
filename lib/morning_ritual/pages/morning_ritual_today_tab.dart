@@ -261,6 +261,60 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
     }
   }
 
+  void _goToPreviousItem() {
+    if (_currentItemIndex <= 0) return;
+
+    _timer?.cancel();
+
+    setState(() {
+      // Remove the last completed record (we're going back)
+      if (_completedRecords.isNotEmpty) {
+        _completedRecords.removeLast();
+      }
+      _currentItemIndex--;
+      _timerRunning = false;
+      _timerPaused = false;
+      _remainingSeconds = 0;
+    });
+
+    _setupCurrentItem();
+  }
+
+  Future<void> _startOver() async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t(context, 'morning_ritual_start_over')),
+        content: Text(t(context, 'morning_ritual_start_over_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t(context, 'cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: Text(t(context, 'morning_ritual_start_over')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      _timer?.cancel();
+      setState(() {
+        _currentItemIndex = 0;
+        _completedRecords = [];
+        _ritualStartedAt = DateTime.now();
+        _timerRunning = false;
+        _timerPaused = false;
+        _remainingSeconds = 0;
+      });
+      _setupCurrentItem();
+    }
+  }
+
   Future<void> _finishRitual() async {
     final entry = MorningRitualEntry(
       date: widget.selectedDate,
@@ -489,6 +543,35 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Previous and Start Over buttons
+          Row(
+            children: [
+              // Previous button (only show if not on first item)
+              if (_currentItemIndex > 0)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _goToPreviousItem,
+                    icon: const Icon(Icons.arrow_back),
+                    label: Text(t(context, 'morning_ritual_previous')),
+                  ),
+                ),
+              if (_currentItemIndex > 0)
+                const SizedBox(width: 16),
+              // Start Over button
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _startOver,
+                  icon: const Icon(Icons.restart_alt),
+                  label: Text(t(context, 'morning_ritual_start_over')),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
                   ),
                 ),
               ),

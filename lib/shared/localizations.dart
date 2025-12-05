@@ -348,6 +348,9 @@ final Map<String, Map<String, String>> localizedValues = {
     'morning_ritual_delete_entry': 'Delete Entry',
     'morning_ritual_delete_entry_confirm': 'Are you sure you want to delete the morning ritual entry for {date}?',
     'morning_ritual_entry_deleted': 'Entry deleted',
+    'morning_ritual_previous': 'Previous',
+    'morning_ritual_start_over': 'Start Over',
+    'morning_ritual_start_over_confirm': 'Start over from the beginning? Your current progress will be lost.',
     'more': 'more',
     // Help Content - Morning Ritual
     'help_morning_ritual_title': 'Morning Ritual - Purpose & Guidance',
@@ -705,6 +708,9 @@ final Map<String, Map<String, String>> localizedValues = {
     'morning_ritual_delete_entry': 'Slet indtastning',
     'morning_ritual_delete_entry_confirm': 'Er du sikker på, at du vil slette morgenritual for {date}?',
     'morning_ritual_entry_deleted': 'Indtastning slettet',
+    'morning_ritual_previous': 'Forrige',
+    'morning_ritual_start_over': 'Start Forfra',
+    'morning_ritual_start_over_confirm': 'Start forfra fra begyndelsen? Din nuværende fremgang vil gå tabt.',
     'more': 'mere',
     // Help Content - Morning Ritual (Danish)
     'help_morning_ritual_title': 'Morgenritual - Formål & Vejledning',
