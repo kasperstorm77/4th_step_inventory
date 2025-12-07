@@ -56,18 +56,21 @@ Examples:
 
 ### Build & Version Management
 ```bash
-# Auto-increment version (1.0.1+36 → 1.0.1+37)
+# Manually increment version when needed (1.0.1+36 → 1.0.1+37)
 dart scripts/increment_version.dart
 
 # VS Code Tasks (Ctrl+Shift+P → "Tasks: Run Task"):
 # - "increment-version" - Just increment version
-# - "flutter-debug-with-version-increment" - Debug build with version bump
 # - "build-windows-release-zip" - Build Windows release + create ZIP distribution
 ```
 
 ### Platform Builds
 ```bash
-# Android APK (release)
+# Android App Bundle for Play Store (release)
+flutter build appbundle --release
+# Output: build/app/outputs/bundle/release/app-release.aab
+
+# Android APK (release) - for direct installation
 flutter build apk --release
 # Output: build/app/outputs/flutter-apk/app-release.apk
 
@@ -77,6 +80,9 @@ flutter build apk --release
 
 # Windows Debug
 flutter run -d windows
+
+# Android Debug (on connected device)
+flutter run -d <device_id>
 ```
 
 ### Code Generation (After Model Changes)
@@ -87,6 +93,8 @@ dart run build_runner build --delete-conflicting-outputs
 ### Debugging
 - VS Code launch configs in `.vscode/launch.json` support mobile/desktop
 - See `docs/VS_CODE_DEBUG.md` for platform-specific setup
+
+**Note:** Do NOT auto-increment version on every build. Only increment version manually before release builds.
 
 ## Data Safety Rules
 

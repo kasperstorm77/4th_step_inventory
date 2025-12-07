@@ -510,6 +510,30 @@ class _DataManagementTabState extends State<DataManagementTab> {
           }
         }
 
+        // Import morning ritual items (definitions) if present (v7.0+)
+        if (decoded.containsKey('morningRitualItems')) {
+          final morningRitualItemsBox = Hive.box<RitualItem>('morning_ritual_items');
+          final itemsList = decoded['morningRitualItems'] as List;
+          await morningRitualItemsBox.clear();
+          for (final itemJson in itemsList) {
+            final item = RitualItem.fromJson(itemJson as Map<String, dynamic>);
+            await morningRitualItemsBox.put(item.id, item);
+          }
+          if (kDebugMode) print('Drive restore: Imported ${morningRitualItemsBox.length} morning ritual items');
+        }
+
+        // Import morning ritual entries (daily completions) if present (v7.0+)
+        if (decoded.containsKey('morningRitualEntries')) {
+          final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
+          final entriesList = decoded['morningRitualEntries'] as List;
+          await morningRitualEntriesBox.clear();
+          for (final entryJson in entriesList) {
+            final entry = MorningRitualEntry.fromJson(entryJson as Map<String, dynamic>);
+            await morningRitualEntriesBox.put(entry.id, entry);
+          }
+          if (kDebugMode) print('Drive restore: Imported ${morningRitualEntriesBox.length} morning ritual entries');
+        }
+
         // Save the remote timestamp as local timestamp to prevent repeated sync prompts
         if (decoded.containsKey('lastModified')) {
           final remoteTimestamp = DateTime.parse(decoded['lastModified'] as String);
@@ -518,12 +542,30 @@ class _DataManagementTabState extends State<DataManagementTab> {
           if (kDebugMode) print('_fetchFromGoogle: Saved lastModified timestamp: ${remoteTimestamp.toIso8601String()}');
         }
         
+        // Calculate counts for all app data
+        final entriesCount = entries.length;
+        final iamsCount = decoded.containsKey('iAmDefinitions') ? (decoded['iAmDefinitions'] as List).length : 0;
+        final peopleCount = decoded.containsKey('people') ? (decoded['people'] as List).length : 0;
+        final reflectionsCount = decoded.containsKey('reflections') ? (decoded['reflections'] as List).length : 0;
+        final gratitudeCount = (decoded.containsKey('gratitude') ? (decoded['gratitude'] as List).length : 0) + 
+                               (decoded.containsKey('gratitudeEntries') ? (decoded['gratitudeEntries'] as List).length : 0);
+        final agnosticismCount = (decoded.containsKey('agnosticism') ? (decoded['agnosticism'] as List).length : 0) + 
+                                 (decoded.containsKey('agnosticismPapers') ? (decoded['agnosticismPapers'] as List).length : 0);
+        final ritualItemsCount = decoded.containsKey('morningRitualItems') ? (decoded['morningRitualItems'] as List).length : 0;
+        final ritualEntriesCount = decoded.containsKey('morningRitualEntries') ? (decoded['morningRitualEntries'] as List).length : 0;
+        
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(t(context, 'fetch_success_count')
-                .replaceFirst('%entries%', entries.length.toString())
-                .replaceFirst('%iams%', (decoded.containsKey('iAmDefinitions') ? (decoded['iAmDefinitions'] as List).length : 0).toString())),
+                .replaceFirst('%entries%', entriesCount.toString())
+                .replaceFirst('%iams%', iamsCount.toString())
+                .replaceFirst('%people%', peopleCount.toString())
+                .replaceFirst('%reflections%', reflectionsCount.toString())
+                .replaceFirst('%gratitude%', gratitudeCount.toString())
+                .replaceFirst('%agnosticism%', agnosticismCount.toString())
+                .replaceFirst('%ritualItems%', ritualItemsCount.toString())
+                .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())),
             duration: const Duration(seconds: 4),
           ),
         );
@@ -789,14 +831,30 @@ class _DataManagementTabState extends State<DataManagementTab> {
         }
       }
 
+      // Calculate counts for all app data
+      final entriesCount = (data['entries'] as List).length;
+      final iamsCount = data.containsKey('iAmDefinitions') ? (data['iAmDefinitions'] as List).length : 0;
+      final peopleCount = data.containsKey('people') ? (data['people'] as List).length : 0;
+      final reflectionsCount = data.containsKey('reflections') ? (data['reflections'] as List).length : 0;
+      final gratitudeCount = (data.containsKey('gratitude') ? (data['gratitude'] as List).length : 0) + 
+                             (data.containsKey('gratitudeEntries') ? (data['gratitudeEntries'] as List).length : 0);
+      final agnosticismCount = (data.containsKey('agnosticism') ? (data['agnosticism'] as List).length : 0) + 
+                               (data.containsKey('agnosticismPapers') ? (data['agnosticismPapers'] as List).length : 0);
+      final ritualItemsCount = data.containsKey('morningRitualItems') ? (data['morningRitualItems'] as List).length : 0;
+      final ritualEntriesCount = data.containsKey('morningRitualEntries') ? (data['morningRitualEntries'] as List).length : 0;
+
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
           content: Text(t(context, 'import_success_count')
-              .replaceFirst('%entries%', entries.length.toString())
-              .replaceFirst('%iams%', (data.containsKey('iAmDefinitions') ? (data['iAmDefinitions'] as List).length : 0).toString())
-              .replaceFirst('%people%', (data.containsKey('people') ? (data['people'] as List).length : 0).toString())
-              .replaceFirst('%reflections%', (data.containsKey('reflections') ? (data['reflections'] as List).length : 0).toString())),
+              .replaceFirst('%entries%', entriesCount.toString())
+              .replaceFirst('%iams%', iamsCount.toString())
+              .replaceFirst('%people%', peopleCount.toString())
+              .replaceFirst('%reflections%', reflectionsCount.toString())
+              .replaceFirst('%gratitude%', gratitudeCount.toString())
+              .replaceFirst('%agnosticism%', agnosticismCount.toString())
+              .replaceFirst('%ritualItems%', ritualItemsCount.toString())
+              .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())),
           duration: const Duration(seconds: 4),
         ),
       );

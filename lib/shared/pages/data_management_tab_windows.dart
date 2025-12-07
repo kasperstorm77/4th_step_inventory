@@ -196,9 +196,10 @@ class _DataManagementTabState extends State<DataManagementTab> {
     });
     
     await Hive.box('settings').put('syncEnabled', value);
+    await AllAppsDriveService.instance.setSyncEnabled(value);
     
     if (value && _isSignedIn) {
-      // Trigger initial sync
+      // Trigger initial sync - check if remote is newer first
       await _performSync();
     }
   }
@@ -209,15 +210,48 @@ class _DataManagementTabState extends State<DataManagementTab> {
     try {
       // Use AllAppsDriveService for syncing all apps
       final allAppsService = AllAppsDriveService.instance;
-      final entriesBox = Hive.box<InventoryEntry>('entries');
       
-      // This will upload current data to Drive
-      await allAppsService.uploadFromBoxWithNotification(entriesBox);
+      // First check if remote data is newer and download if so
+      final didSync = await allAppsService.checkAndSyncIfNeeded();
       
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t(context, 'sync_complete'))),
-        );
+      if (didSync) {
+        // Remote was newer, data was downloaded
+        // Get the counts from the local boxes after sync
+        final entriesBox = Hive.box<InventoryEntry>('entries');
+        final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
+        final peopleBox = Hive.box<Person>('people_box');
+        final reflectionsBox = Hive.box<ReflectionEntry>('reflections_box');
+        final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
+        final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
+        final morningRitualItemsBox = Hive.box<RitualItem>('morning_ritual_items');
+        final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(t(context, 'fetch_success_count')
+                  .replaceFirst('%entries%', entriesBox.length.toString())
+                  .replaceFirst('%iams%', iAmBox.length.toString())
+                  .replaceFirst('%people%', peopleBox.length.toString())
+                  .replaceFirst('%reflections%', reflectionsBox.length.toString())
+                  .replaceFirst('%gratitude%', gratitudeBox.length.toString())
+                  .replaceFirst('%agnosticism%', agnosticismBox.length.toString())
+                  .replaceFirst('%ritualItems%', morningRitualItemsBox.length.toString())
+                  .replaceFirst('%ritualEntries%', morningRitualEntriesBox.length.toString())),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } else {
+        // Local is up to date, upload current data
+        final entriesBox = Hive.box<InventoryEntry>('entries');
+        await allAppsService.uploadFromBoxWithNotification(entriesBox);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t(context, 'sync_complete'))),
+          );
+        }
       }
     } catch (e) {
       if (kDebugMode) print('Sync failed: $e');
@@ -282,9 +316,32 @@ class _DataManagementTabState extends State<DataManagementTab> {
       final data = jsonDecode(content) as Map<String, dynamic>;
       await _importData(data);
 
+      // Calculate counts for all app data
+      final entriesCount = data.containsKey('entries') ? (data['entries'] as List).length : 0;
+      final iamsCount = data.containsKey('iAmDefinitions') ? (data['iAmDefinitions'] as List).length : 0;
+      final peopleCount = data.containsKey('people') ? (data['people'] as List).length : 0;
+      final reflectionsCount = data.containsKey('reflections') ? (data['reflections'] as List).length : 0;
+      final gratitudeCount = (data.containsKey('gratitude') ? (data['gratitude'] as List).length : 0) + 
+                             (data.containsKey('gratitudeEntries') ? (data['gratitudeEntries'] as List).length : 0);
+      final agnosticismCount = (data.containsKey('agnosticism') ? (data['agnosticism'] as List).length : 0) + 
+                               (data.containsKey('agnosticismPapers') ? (data['agnosticismPapers'] as List).length : 0);
+      final ritualItemsCount = data.containsKey('morningRitualItems') ? (data['morningRitualItems'] as List).length : 0;
+      final ritualEntriesCount = data.containsKey('morningRitualEntries') ? (data['morningRitualEntries'] as List).length : 0;
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t(context, 'import_success'))),
+          SnackBar(
+            content: Text(t(context, 'fetch_success_count')
+                .replaceFirst('%entries%', entriesCount.toString())
+                .replaceFirst('%iams%', iamsCount.toString())
+                .replaceFirst('%people%', peopleCount.toString())
+                .replaceFirst('%reflections%', reflectionsCount.toString())
+                .replaceFirst('%gratitude%', gratitudeCount.toString())
+                .replaceFirst('%agnosticism%', agnosticismCount.toString())
+                .replaceFirst('%ritualItems%', ritualItemsCount.toString())
+                .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())),
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     } catch (e) {
@@ -405,9 +462,32 @@ class _DataManagementTabState extends State<DataManagementTab> {
 
       await _importData(data);
 
+      // Calculate counts for all app data
+      final entriesCount = data.containsKey('entries') ? (data['entries'] as List).length : 0;
+      final iamsCount = data.containsKey('iAmDefinitions') ? (data['iAmDefinitions'] as List).length : 0;
+      final peopleCount = data.containsKey('people') ? (data['people'] as List).length : 0;
+      final reflectionsCount = data.containsKey('reflections') ? (data['reflections'] as List).length : 0;
+      final gratitudeCount = (data.containsKey('gratitude') ? (data['gratitude'] as List).length : 0) + 
+                             (data.containsKey('gratitudeEntries') ? (data['gratitudeEntries'] as List).length : 0);
+      final agnosticismCount = (data.containsKey('agnosticism') ? (data['agnosticism'] as List).length : 0) + 
+                               (data.containsKey('agnosticismPapers') ? (data['agnosticismPapers'] as List).length : 0);
+      final ritualItemsCount = data.containsKey('morningRitualItems') ? (data['morningRitualItems'] as List).length : 0;
+      final ritualEntriesCount = data.containsKey('morningRitualEntries') ? (data['morningRitualEntries'] as List).length : 0;
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t(context, 'import_success'))),
+          SnackBar(
+            content: Text(t(context, 'fetch_success_count')
+                .replaceFirst('%entries%', entriesCount.toString())
+                .replaceFirst('%iams%', iamsCount.toString())
+                .replaceFirst('%people%', peopleCount.toString())
+                .replaceFirst('%reflections%', reflectionsCount.toString())
+                .replaceFirst('%gratitude%', gratitudeCount.toString())
+                .replaceFirst('%agnosticism%', agnosticismCount.toString())
+                .replaceFirst('%ritualItems%', ritualItemsCount.toString())
+                .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())),
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     } catch (e) {
