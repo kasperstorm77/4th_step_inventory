@@ -20,16 +20,29 @@ class AgnosticismHome extends StatefulWidget {
 
 class _AgnosticismHomeState extends State<AgnosticismHome> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+  final _paperController = PaperTabController();
+  final _forceShowBack = ValueNotifier<bool>(false);
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    // When animation completes and we're on paper tab (index 0) with forceShowBack set
+    if (!_tabController.indexIsChanging && _tabController.index == 0 && _forceShowBack.value) {
+      _paperController.showBackInstant();
+      _forceShowBack.value = false;
+    }
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
+    _forceShowBack.dispose();
     super.dispose();
   }
 
@@ -137,9 +150,19 @@ class _AgnosticismHomeState extends State<AgnosticismHome> with SingleTickerProv
         top: false,
         child: TabBarView(
           controller: _tabController,
+          physics: const NeverScrollableScrollPhysics(),
           children: [
-            const PaperTab(),
-            ArchiveTab(),
+            PaperTab(
+              controller: _paperController,
+              onNavigateToArchive: () => _tabController.animateTo(1),
+              forceShowBack: _forceShowBack,
+            ),
+            ArchiveTab(
+              onSwipeToBack: () {
+                _forceShowBack.value = true;
+                _tabController.animateTo(0);
+              },
+            ),
           ],
         ),
       ),

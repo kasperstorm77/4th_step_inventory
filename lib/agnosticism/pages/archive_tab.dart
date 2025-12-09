@@ -4,10 +4,18 @@ import '../models/barrier_power_pair.dart';
 import '../services/agnosticism_service.dart';
 import '../../shared/localizations.dart';
 
-class ArchiveTab extends StatelessWidget {
-  ArchiveTab({super.key});
+class ArchiveTab extends StatefulWidget {
+  const ArchiveTab({super.key, this.onSwipeToBack});
 
+  final VoidCallback? onSwipeToBack;
+
+  @override
+  State<ArchiveTab> createState() => _ArchiveTabState();
+}
+
+class _ArchiveTabState extends State<ArchiveTab> {
   final _service = AgnosticismService();
+  double _dragDeltaX = 0;
 
   void _restorePair(BuildContext context, Box<BarrierPowerPair> box, BarrierPowerPair pair) async {
     if (!_service.canAddPair(box)) {
@@ -67,43 +75,57 @@ class ArchiveTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final box = Hive.box<BarrierPowerPair>('agnosticism_pairs');
 
-    return ValueListenableBuilder(
-      valueListenable: box.listenable(),
-      builder: (context, Box<BarrierPowerPair> box, _) {
-        final archivedPairs = _service.getArchivedPairs(box);
-        final canRestore = _service.canAddPair(box);
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: (details) {
+        _dragDeltaX += details.delta.dx;
+      },
+      onHorizontalDragEnd: (_) {
+        const threshold = 40.0;
+        final delta = _dragDeltaX;
+        _dragDeltaX = 0;
+        if (delta.abs() > threshold) {
+          widget.onSwipeToBack?.call();
+        }
+      },
+      child: ValueListenableBuilder(
+        valueListenable: box.listenable(),
+        builder: (context, Box<BarrierPowerPair> box, _) {
+          final archivedPairs = _service.getArchivedPairs(box);
+          final canRestore = _service.canAddPair(box);
 
-        if (archivedPairs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.archive_outlined,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  t(context, 'agnosticism_empty_archive'),
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          if (archivedPairs.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.archive_outlined,
+                    size: 64,
                     color: Theme.of(context).colorScheme.outline,
                   ),
-                ),
-              ],
-            ),
-          );
-        }
+                  const SizedBox(height: 16),
+                  Text(
+                    t(context, 'agnosticism_empty_archive'),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
 
-        return ListView.builder(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 32),
-          itemCount: archivedPairs.length,
-          itemBuilder: (context, index) {
-            final pair = archivedPairs[index];
-            return _buildArchivedPairCard(context, box, pair, canRestore);
-          },
-        );
-      },
+          return ListView.builder(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 32),
+            itemCount: archivedPairs.length,
+            itemBuilder: (context, index) {
+              final pair = archivedPairs[index];
+              return _buildArchivedPairCard(context, box, pair, canRestore);
+            },
+          );
+        },
+      ),
     );
   }
 
