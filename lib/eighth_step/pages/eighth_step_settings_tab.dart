@@ -152,11 +152,13 @@ class PersonListItem extends StatelessWidget {
 class PersonEditDialog extends StatefulWidget {
   final Person? person;
   final Function(String name, String? amends, ColumnType column, bool amendsDone) onSave;
+  final VoidCallback? onDelete;
 
   const PersonEditDialog({
     super.key,
     this.person,
     required this.onSave,
+    this.onDelete,
   });
 
   @override
@@ -273,6 +275,15 @@ class _PersonEditDialogState extends State<PersonEditDialog> {
         ),
       ),
       actions: [
+        if (widget.person != null && widget.onDelete != null)
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showDeleteConfirmation(context);
+            },
+            child: Text(t(context, 'delete'), style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ),
+        const Spacer(),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(t(context, 'cancel')),
@@ -291,5 +302,28 @@ class _PersonEditDialogState extends State<PersonEditDialog> {
       widget.onSave(_name, _amends, _column, _amendsDone);
       Navigator.of(context).pop();
     }
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t(context, 'delete_person')),
+        content: Text(t(context, 'confirm_delete_person')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(t(context, 'cancel')),
+          ),
+          TextButton(
+            onPressed: () {
+              widget.onDelete?.call();
+              Navigator.of(dialogContext).pop();
+            },
+            child: Text(t(context, 'delete')),
+          ),
+        ],
+      ),
+    );
   }
 }

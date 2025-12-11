@@ -9,7 +9,6 @@ import '../../shared/services/app_help_service.dart';
 import '../../shared/models/app_entry.dart';
 import '../../shared/pages/data_management_page.dart';
 import '../../shared/services/locale_provider.dart';
-import 'eighth_step_view_person_tab.dart';
 import 'eighth_step_settings_tab.dart' as settings;
 
 class EighthStepHome extends StatefulWidget {
@@ -21,30 +20,35 @@ class EighthStepHome extends StatefulWidget {
   State<EighthStepHome> createState() => _EighthStepHomeState();
 }
 
-class _EighthStepHomeState extends State<EighthStepHome> with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-  String? _lastViewedPersonId;
+class _EighthStepHomeState extends State<EighthStepHome> {
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      setState(() {}); // Rebuild to show/hide FAB based on tab
-    });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  void _onViewPerson(String internalId) {
-    setState(() {
-      _lastViewedPersonId = internalId;
-    });
-    _tabController.animateTo(1);
+  void _showEditPersonDialog(String internalId) {
+    final box = Hive.box<Person>('people_box');
+    final person = box.values.cast<Person?>().firstWhere(
+      (p) => p?.internalId == internalId,
+      orElse: () => null,
+    );
+    
+    if (person == null) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => settings.PersonEditDialog(
+        person: person,
+        onSave: (name, amends, column, amendsDone) {
+          final updatedPerson = person.copyWith(
+            name: name,
+            amends: amends,
+            column: column,
+            amendsDone: amendsDone,
+          );
+          PersonService.updatePerson(updatedPerson);
+        },
+        onDelete: () {
+          PersonService.deletePerson(person.internalId);
+        },
+      ),
+    );
   }
 
   void _changeLanguage(String langCode) {
@@ -110,13 +114,14 @@ class _EighthStepHomeState extends State<EighthStepHome> with SingleTickerProvid
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(t(context, 'eighth_step_title')),
+        title: Text(t(context, 'eighth_step_title'), style: const TextStyle(fontSize: 18)),
         actions: [
           // App Switcher Icon
           IconButton(
             icon: const Icon(Icons.apps),
             tooltip: t(context, 'switch_app'),
             onPressed: _showAppSwitcher,
+            visualDensity: VisualDensity.compact,
           ),
           // Help Icon
           IconButton(
@@ -128,6 +133,7 @@ class _EighthStepHomeState extends State<EighthStepHome> with SingleTickerProvid
                 AvailableApps.eighthStepAmends,
               );
             },
+            visualDensity: VisualDensity.compact,
           ),
           // Settings Icon
           IconButton(
@@ -135,6 +141,7 @@ class _EighthStepHomeState extends State<EighthStepHome> with SingleTickerProvid
             onPressed: () {
               _openDataManagement();
             },
+            visualDensity: VisualDensity.compact,
           ),
           // Language Selector
           PopupMenuButton<String>(
@@ -144,32 +151,15 @@ class _EighthStepHomeState extends State<EighthStepHome> with SingleTickerProvid
               PopupMenuItem(value: 'da', child: Text(t(context, 'lang_danish'))),
             ],
             icon: const Icon(Icons.language),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(text: t(context, 'eighth_step_main_tab')),
-            Tab(text: t(context, 'eighth_step_view_tab')),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          EighthStepMainTab(onViewPerson: _onViewPerson),
-          EighthStepViewPersonTab(
-            lastViewedPersonId: _lastViewedPersonId,
-            onBackToList: () => _tabController.animateTo(0),
+            padding: EdgeInsets.zero,
           ),
         ],
       ),
-      floatingActionButton: _tabController.index == 0
-          ? FloatingActionButton(
-              onPressed: () => _showAddPersonDialog(context),
-              child: const Icon(Icons.add),
-            )
-          : null,
+      body: EighthStepMainTab(onViewPerson: _showEditPersonDialog),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddPersonDialog(context),
+        child: const Icon(Icons.add),
+      ),
     );
   }
 

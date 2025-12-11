@@ -185,13 +185,14 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
     // Routing to other apps is handled by AppRouter
     return Scaffold(
       appBar: AppBar(
-        title: Text(t(context, 'app_title')),
+        title: Text(t(context, 'app_title'), style: const TextStyle(fontSize: 18)),
         actions: [
           // App Switcher Icon
           IconButton(
             icon: const Icon(Icons.apps),
             tooltip: t(context, 'switch_app'),
             onPressed: _showAppSwitcher,
+            visualDensity: VisualDensity.compact,
           ),
           // Help Icon
           IconButton(
@@ -203,6 +204,7 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
                 AvailableApps.fourthStepInventory,
               );
             },
+            visualDensity: VisualDensity.compact,
           ),
           // Settings Icon
           IconButton(
@@ -210,6 +212,7 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
             onPressed: () {
               _openDataManagement();
             },
+            visualDensity: VisualDensity.compact,
           ),
           // Language Selector
           PopupMenuButton<String>(
@@ -219,6 +222,7 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
               PopupMenuItem(value: 'da', child: Text(t(context, 'lang_danish'))),
             ],
             icon: const Icon(Icons.language),
+            padding: EdgeInsets.zero,
           ),
         ],
         bottom: TabBar(

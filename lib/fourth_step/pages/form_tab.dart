@@ -182,7 +182,7 @@ class _FormTabState extends State<FormTab> {
           ),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
             child: Row(
               children: InventoryCategory.values.map((category) {
                 final isSelected = widget.selectedCategory == category;
@@ -325,8 +325,8 @@ class _FormTabState extends State<FormTab> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) {
           final filteredDefinitions = definitions.where((def) {
             if (searchQuery.isEmpty) return true;
             return def.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
@@ -359,9 +359,30 @@ class _FormTabState extends State<FormTab> {
                   Expanded(
                     child: ListView.builder(
                       shrinkWrap: true,
-                      itemCount: filteredDefinitions.length + 1,
+                      itemCount: filteredDefinitions.length + 2, // +2 for "None" and "Add new" options
                       itemBuilder: (context, index) {
                         if (index == 0) {
+                          // "Add new I Am" option
+                          return Card(
+                            color: Theme.of(context).colorScheme.secondaryContainer,
+                            child: ListTile(
+                              leading: Icon(Icons.add_circle, color: Theme.of(context).colorScheme.primary),
+                              title: Text(
+                                t(context, 'add_i_am'),
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              onTap: () {
+                                Navigator.of(dialogContext).pop();
+                                _showAddIAmDialog(context, iAmBox);
+                              },
+                            ),
+                          );
+                        }
+                        
+                        if (index == 1) {
                           // "None" option
                           return Card(
                             child: ListTile(
@@ -372,13 +393,13 @@ class _FormTabState extends State<FormTab> {
                               ),
                               onTap: () {
                                 widget.onIAmChanged?.call(null);
-                                Navigator.of(context).pop();
+                                Navigator.of(dialogContext).pop();
                               },
                             ),
                           );
                         }
 
-                        final definition = filteredDefinitions[index - 1];
+                        final definition = filteredDefinitions[index - 2];
                         final isSelected = widget.selectedIAmId == definition.id;
                         
                         return Card(
@@ -411,7 +432,7 @@ class _FormTabState extends State<FormTab> {
                               : null,
                             onTap: () {
                               widget.onIAmChanged?.call(definition.id);
-                              Navigator.of(context).pop();
+                              Navigator.of(dialogContext).pop();
                             },
                           ),
                         );
@@ -423,12 +444,85 @@ class _FormTabState extends State<FormTab> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => Navigator.of(dialogContext).pop(),
                 child: Text(t(context, 'close')),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showAddIAmDialog(BuildContext context, Box<IAmDefinition> iAmBox) {
+    final nameController = TextEditingController();
+    final reasonController = TextEditingController();
+    final iAmService = IAmService();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t(context, 'add_i_am')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: t(context, 'i_am_name'),
+                  border: const OutlineInputBorder(),
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: reasonController,
+                decoration: InputDecoration(
+                  labelText: t(context, 'reason_to_exist_optional'),
+                  border: const OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(t(context, 'cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(t(context, 'i_am_name_required'))),
+                );
+                return;
+              }
+
+              final newId = iAmService.generateId();
+              final newDefinition = IAmDefinition(
+                id: newId,
+                name: name,
+                reasonToExist: reasonController.text.trim().isEmpty
+                    ? null
+                    : reasonController.text.trim(),
+              );
+
+              await iAmService.addDefinition(iAmBox, newDefinition);
+              
+              // Auto-select the newly created I Am
+              widget.onIAmChanged?.call(newId);
+              
+              if (dialogContext.mounted) {
+                Navigator.of(dialogContext).pop();
+              }
+            },
+            child: Text(t(context, 'save_changes')),
+          ),
+        ],
       ),
     );
   }

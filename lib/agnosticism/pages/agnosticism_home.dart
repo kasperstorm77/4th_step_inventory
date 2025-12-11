@@ -108,12 +108,13 @@ class _AgnosticismHomeState extends State<AgnosticismHome> with SingleTickerProv
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(t(context, 'agnosticism_title')),
+        title: Text(t(context, 'agnosticism_title'), style: const TextStyle(fontSize: 18)),
         actions: [
           IconButton(
             icon: const Icon(Icons.apps),
             tooltip: t(context, 'switch_app'),
             onPressed: _showAppSwitcher,
+            visualDensity: VisualDensity.compact,
           ),
           IconButton(
             icon: const Icon(Icons.help_outline),
@@ -124,10 +125,12 @@ class _AgnosticismHomeState extends State<AgnosticismHome> with SingleTickerProv
                 AvailableApps.agnosticism,
               );
             },
+            visualDensity: VisualDensity.compact,
           ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _openDataManagement,
+            visualDensity: VisualDensity.compact,
           ),
           PopupMenuButton<String>(
             onSelected: _changeLanguage,
@@ -136,6 +139,7 @@ class _AgnosticismHomeState extends State<AgnosticismHome> with SingleTickerProv
               PopupMenuItem(value: 'da', child: Text(t(context, 'lang_danish'))),
             ],
             icon: const Icon(Icons.language),
+            padding: EdgeInsets.zero,
           ),
         ],
         bottom: TabBar(

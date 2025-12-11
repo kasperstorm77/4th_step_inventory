@@ -108,13 +108,14 @@ class _EveningRitualHomeState extends State<EveningRitualHome> with SingleTicker
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(t(context, 'evening_ritual_title')),
+        title: Text(t(context, 'evening_ritual_title'), style: const TextStyle(fontSize: 18)),
         actions: [
           // App Switcher Icon
           IconButton(
             icon: const Icon(Icons.apps),
             tooltip: t(context, 'switch_app'),
             onPressed: _showAppSwitcher,
+            visualDensity: VisualDensity.compact,
           ),
           // Help Icon
           IconButton(
@@ -126,6 +127,7 @@ class _EveningRitualHomeState extends State<EveningRitualHome> with SingleTicker
                 AvailableApps.eveningRitual,
               );
             },
+            visualDensity: VisualDensity.compact,
           ),
           // Settings Icon
           IconButton(
@@ -133,6 +135,7 @@ class _EveningRitualHomeState extends State<EveningRitualHome> with SingleTicker
             onPressed: () {
               _openDataManagement();
             },
+            visualDensity: VisualDensity.compact,
           ),
           // Language Selector
           PopupMenuButton<String>(
@@ -142,6 +145,7 @@ class _EveningRitualHomeState extends State<EveningRitualHome> with SingleTicker
               PopupMenuItem(value: 'da', child: Text(t(context, 'lang_danish'))),
             ],
             icon: const Icon(Icons.language),
+            padding: EdgeInsets.zero,
           ),
         ],
         bottom: TabBar(

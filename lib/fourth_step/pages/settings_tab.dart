@@ -54,12 +54,14 @@ class _SettingsTabState extends State<SettingsTab> {
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      t(context, 'i_am_definitions'),
-                      style: Theme.of(context).textTheme.headlineSmall,
+                    Expanded(
+                      child: Text(
+                        t(context, 'i_am_definitions'),
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     ElevatedButton.icon(
                       onPressed: () => _showAddEditDialog(context, box),
                       icon: const Icon(Icons.add),

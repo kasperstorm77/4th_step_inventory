@@ -117,13 +117,14 @@ class _MorningRitualHomeState extends State<MorningRitualHome>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(t(context, 'morning_ritual_title')),
+        title: Text(t(context, 'morning_ritual_title'), style: const TextStyle(fontSize: 18)),
         actions: [
           // App Switcher Icon
           IconButton(
             icon: const Icon(Icons.apps),
             tooltip: t(context, 'switch_app'),
             onPressed: _showAppSwitcher,
+            visualDensity: VisualDensity.compact,
           ),
           // Help Icon
           IconButton(
@@ -135,6 +136,7 @@ class _MorningRitualHomeState extends State<MorningRitualHome>
                 AvailableApps.morningRitual,
               );
             },
+            visualDensity: VisualDensity.compact,
           ),
           // Settings Icon
           IconButton(
@@ -142,6 +144,7 @@ class _MorningRitualHomeState extends State<MorningRitualHome>
             onPressed: () {
               _openDataManagement();
             },
+            visualDensity: VisualDensity.compact,
           ),
           // Language Selector
           PopupMenuButton<String>(
@@ -153,6 +156,7 @@ class _MorningRitualHomeState extends State<MorningRitualHome>
                   value: 'da', child: Text(t(context, 'lang_danish'))),
             ],
             icon: const Icon(Icons.language),
+            padding: EdgeInsets.zero,
           ),
         ],
         bottom: TabBar(

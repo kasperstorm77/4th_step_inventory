@@ -75,9 +75,8 @@ lib/
 │   ├── services/
 │   │   └── person_service.dart          # CRUD for people
 │   └── pages/
-│       ├── eighth_step_home.dart        # Main container with tabs
-│       ├── eighth_step_settings_tab.dart    # Person CRUD management
-│       └── eighth_step_view_person_tab.dart # Person detail view
+│       ├── eighth_step_home.dart        # Main container (single view with 3 columns)
+│       └── eighth_step_settings_tab.dart    # Person edit dialog
 │
 ├── morning_ritual/                 # MORNING RITUAL APP
 │   ├── models/
