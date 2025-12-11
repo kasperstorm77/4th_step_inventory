@@ -602,7 +602,7 @@ final Map<String, Map<String, String>> localizedValues = {
     'agnosticism_paper_tab': 'Papir',
     'agnosticism_archive_tab': 'Arkiv',
     'agnosticism_barriers_title': 'Ikke overgivet til gud',
-    'agnosticism_powers_title': 'Gudsgivet korrigerende handling',
+    'agnosticism_powers_title': 'Guds vilje',
     'agnosticism_flip': 'Vend Papir',
     'agnosticism_add_pair': 'Tilføj Par',
     'agnosticism_edit_pair': 'Rediger Par',

@@ -283,7 +283,7 @@ class _EveningRitualListTabState extends State<EveningRitualListTab> {
                     child: Icon(
                       Icons.delete_outline,
                       size: 16,
-                      color: Colors.red.withOpacity(0.6),
+                      color: Colors.red.withValues(alpha: 0.6),
                     ),
                   ),
                 ),

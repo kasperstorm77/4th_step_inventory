@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -10,11 +9,9 @@ import 'settings_tab.dart';
 import '../../shared/localizations.dart';
 import '../../shared/services/all_apps_drive_service.dart';
 import '../services/inventory_service.dart';
-import '../../shared/services/app_version_service.dart';
 import '../../shared/services/app_switcher_service.dart';
 import '../../shared/services/app_help_service.dart';
 import '../../shared/services/locale_provider.dart';
-import '../../shared/utils/platform_helper.dart';
 import '../../shared/pages/data_management_page.dart';
 
 class ModularInventoryHome extends StatefulWidget {
@@ -53,9 +50,7 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
     
     // Note: No longer listening to all upload events to avoid showing notifications
     // for background sync. User-initiated actions in Settings show their own notifications.
-
-    // Check for new installation or update and potentially prompt for Google fetch
-    _checkForNewInstallOrUpdate();
+    // Sync is handled automatically via timestamp comparison in main.dart
   }
 
   @override
@@ -123,30 +118,6 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
 
   Future<void> _deleteEntry(int index) async {
     await _inventoryService.deleteEntry(index);
-  }
-
-  Future<void> _checkForNewInstallOrUpdate() async {
-    // Only check for Google fetch on mobile platforms
-    // Desktop uses manual Drive sync buttons instead
-    if (!PlatformHelper.isMobile) return;
-    
-    // Give some time for the app to fully initialize and for Google Sign-In to complete
-    await Future.delayed(const Duration(milliseconds: 1500));
-    
-    if (!mounted) return;
-    
-    try {
-      final shouldPrompt = await AppVersionService.shouldPromptGoogleFetch();
-      if (shouldPrompt && mounted) {
-        // Wait a bit more to ensure UI is ready
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (mounted) {
-          await AppVersionService.showGoogleFetchDialog(context);
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) print('Error checking for new install/update: $e');
-    }
   }
 
   void _changeLanguage(String langCode) {

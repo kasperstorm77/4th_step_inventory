@@ -60,13 +60,14 @@ version: 1.0.1+48  # major.minor.patch+buildNumber
 - **major.minor.patch** - Displayed to users
 - **buildNumber** - Internal tracking, auto-incremented by scripts
 
-## Version Detection in App
+## Automatic Sync
 
-The app automatically detects new installations and updates using the `AppVersionService`:
+The app automatically syncs with Google Drive using timestamp comparison:
 
-- **New Installation**: When the app is installed for the first time, it will prompt to fetch data from Google Drive if the user is signed in
-- **App Update**: When the app version changes, it will also prompt for Google Drive sync
-- **Debug Mode**: Additional console output shows version detection details
+- **On App Start**: `main.dart` calls `AllAppsDriveService.checkAndSyncIfNeeded()` which compares the local `lastModified` timestamp with the remote backup
+- **If Remote is Newer**: Data is automatically downloaded and merged
+- **Manual Restore**: Users can always manually restore from any backup via Data Management page
+- **Debug Mode**: Additional console output shows sync detection details
 
 ## Distribution
 

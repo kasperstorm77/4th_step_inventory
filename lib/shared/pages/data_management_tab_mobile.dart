@@ -1031,6 +1031,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
                       )
                     else
                       DropdownButtonFormField<String>(
+                        isExpanded: true,
                         initialValue: _selectedBackupFileName,
                         decoration: InputDecoration(
                           border: const OutlineInputBorder(),
@@ -1045,7 +1046,12 @@ class _DataManagementTabState extends State<DataManagementTab> {
                               children: [
                                 Icon(Icons.cloud, size: 20, color: Theme.of(context).colorScheme.primary),
                                 const SizedBox(width: 8),
-                                Text(t(context, 'restore_point_latest')),
+                                Expanded(
+                                  child: Text(
+                                    t(context, 'restore_point_latest'),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -1059,7 +1065,12 @@ class _DataManagementTabState extends State<DataManagementTab> {
                                 children: [
                                   const Icon(Icons.history, size: 20, color: Colors.blue),
                                   const SizedBox(width: 8),
-                                  Text(displayDate),
+                                  Expanded(
+                                    child: Text(
+                                      displayDate,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
                                 ],
                               ),
                             );
