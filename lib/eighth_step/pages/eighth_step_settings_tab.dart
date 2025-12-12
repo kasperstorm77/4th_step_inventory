@@ -185,19 +185,22 @@ class _PersonEditDialogState extends State<PersonEditDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.person == null ? t(context, 'add_person') : t(context, 'edit_person')),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                initialValue: _name,
-                decoration: InputDecoration(labelText: t(context, 'person_name')),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return t(context, 'person_name_required');
-                  }
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  initialValue: _name,
+                  decoration: InputDecoration(labelText: t(context, 'person_name')),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return t(context, 'person_name_required');
+                    }
                   return null;
                 },
                 onSaved: (value) => _name = value!,
@@ -270,7 +273,8 @@ class _PersonEditDialogState extends State<PersonEditDialog> {
                   ),
                 ],
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -283,7 +287,8 @@ class _PersonEditDialogState extends State<PersonEditDialog> {
             },
             child: Text(t(context, 'delete'), style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
-        const Spacer(),
+        if (widget.person != null && widget.onDelete != null)
+          const SizedBox(width: 16),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(t(context, 'cancel')),
