@@ -3,29 +3,22 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 class LocaleProvider extends ChangeNotifier {
   Locale _locale = const Locale('en');
-  bool _initialized = false;
   
-  Locale get locale {
-    // Lazy initialization on first access
-    if (!_initialized) {
-      _loadSavedLocale();
-    }
-    return _locale;
+  LocaleProvider() {
+    // Load saved locale immediately on construction
+    _loadSavedLocale();
   }
   
-  /// Load saved locale from Hive (called automatically on first access)
+  Locale get locale => _locale;
+  
+  /// Load saved locale from Hive (called on construction)
   void _loadSavedLocale() {
-    _initialized = true;
     try {
       if (Hive.isBoxOpen('settings')) {
         final settingsBox = Hive.box('settings');
         final savedLanguageCode = settingsBox.get('language') as String?;
         if (savedLanguageCode != null) {
           _locale = Locale(savedLanguageCode);
-          // Schedule a notification after the current frame to update UI
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            notifyListeners();
-          });
         }
       }
     } catch (e) {

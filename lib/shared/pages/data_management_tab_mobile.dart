@@ -457,15 +457,35 @@ class _DataManagementTabState extends State<DataManagementTab> {
     String? content;
     
     try {
-      // Download from selected backup or current file
-      if (_selectedBackupFileName != null && _selectedBackupFileName!.isNotEmpty) {
-        content = await AllAppsDriveService.instance.downloadBackupContent(_selectedBackupFileName!);
-      } else {
-        // Download current/latest file
-        content = await AllAppsDriveService.instance.downloadBackupContent('');
+      // Download from selected backup or most recent backup
+      String? backupFileName = _selectedBackupFileName;
+      
+      // If no backup selected, find the most recent one
+      if (backupFileName == null || backupFileName.isEmpty) {
+        final backups = await AllAppsDriveService.instance.listAvailableBackups();
+        if (backups.isEmpty) {
+          if (kDebugMode) print('_fetchFromGoogle: No backups found on Drive');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(t(context, 'no_data_found'))),
+            );
+          }
+          return;
+        }
+        // Backups are sorted newest first
+        backupFileName = backups.first['fileName'] as String?;
+        if (kDebugMode) print('_fetchFromGoogle: Using most recent backup: $backupFileName');
       }
       
+      if (backupFileName == null || backupFileName.isEmpty) {
+        if (kDebugMode) print('_fetchFromGoogle: No backup file name available');
+        return;
+      }
+      
+      content = await AllAppsDriveService.instance.downloadBackupContent(backupFileName);
+      
       if (content == null) {
+        if (kDebugMode) print('_fetchFromGoogle: Downloaded content is null');
         return;
       }
       
