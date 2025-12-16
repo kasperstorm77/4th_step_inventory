@@ -86,6 +86,20 @@ class _FormTabState extends State<FormTab> {
     }
   }
 
+  /// Get the tooltip key for "Affects my" field based on category
+  String _getAffectsMyTooltipKey(InventoryCategory category) {
+    switch (category) {
+      case InventoryCategory.resentment:
+        return 'affects_my_tooltip_resentment';
+      case InventoryCategory.fear:
+        return 'affects_my_tooltip_fear';
+      case InventoryCategory.harms:
+        return 'affects_my_tooltip_harms';
+      case InventoryCategory.sexualHarms:
+        return 'affects_my_tooltip_sexual_harms';
+    }
+  }
+
   /// Get icon for category
   IconData _getCategoryIcon(InventoryCategory category) {
     switch (category) {
@@ -138,11 +152,16 @@ class _FormTabState extends State<FormTab> {
               _getField2LabelKey(widget.selectedCategory),
             ),
             
-            // Field 3: Affects my (same for all categories)
-            _buildTextField(context, widget.affectController, 'affects_my'),
+            // Field 3: Affects my (with category-specific tooltip)
+            _buildTextField(
+              context, 
+              widget.affectController, 
+              'affects_my',
+              tooltipKey: _getAffectsMyTooltipKey(widget.selectedCategory),
+            ),
             
             // Field 4: My part (same for all categories)
-            _buildTextField(context, widget.partController, 'my_part', showTooltip: true),
+            _buildTextField(context, widget.partController, 'my_part', tooltipKey: 'part_tooltip'),
             
             // Field 5: Shortcoming(s) (same for all categories)
             _buildTextField(context, widget.defectController, 'shortcoming_field'),
@@ -528,7 +547,7 @@ class _FormTabState extends State<FormTab> {
   }
 
   Widget _buildTextField(
-      BuildContext context, TextEditingController controller, String key, {bool showTooltip = false}) {
+      BuildContext context, TextEditingController controller, String key, {String? tooltipKey}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
@@ -540,14 +559,14 @@ class _FormTabState extends State<FormTab> {
           labelText: t(context, key),
           border: const OutlineInputBorder(),
           alignLabelWithHint: true,
-          suffixIcon: showTooltip
+          suffixIcon: tooltipKey != null
             ? GestureDetector(
                 onTap: () {
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
                       title: Text(t(context, key)),
-                      content: Text(t(context, 'part_tooltip')),
+                      content: Text(t(context, tooltipKey)),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),

@@ -49,7 +49,6 @@
         "cwd": "${workspaceFolder}"
       },
       "group": "build",
-      "dependsOn": "increment-version",
       "presentation": {
         "echo": true,
         "reveal": "always",
