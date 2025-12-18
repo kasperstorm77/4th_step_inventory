@@ -103,6 +103,8 @@ class InventoryService {
     if (newIndex < 0 || newIndex >= entries.length) return;
     if (oldIndex == newIndex) return;
 
+    if (kDebugMode) print('InventoryService: Reordering from $oldIndex to $newIndex');
+
     // Reassign order values based on new positions
     // After reorder, rebuild order values from scratch
     final entry = entries.removeAt(oldIndex);
@@ -110,8 +112,16 @@ class InventoryService {
 
     // Assign new order values (highest to lowest)
     for (int i = 0; i < entries.length; i++) {
-      entries[i].order = entries.length - i;
+      final newOrder = entries.length - i;
+      if (kDebugMode) print('InventoryService: Setting entry ${entries[i].id.substring(0, 8)} order to $newOrder (was ${entries[i].order})');
+      entries[i].order = newOrder;
       await entries[i].save(); // HiveObject.save() updates in place
+    }
+    
+    if (kDebugMode) {
+      // Verify the save worked by reading back from box
+      final verifyEntries = getAllEntries();
+      print('InventoryService: After save, order values are: ${verifyEntries.map((e) => e.order).toList()}');
     }
 
     AllAppsDriveService.instance.scheduleUploadFromBox(_box);

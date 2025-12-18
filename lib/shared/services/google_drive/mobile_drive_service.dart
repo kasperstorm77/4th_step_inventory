@@ -259,16 +259,27 @@ class MobileDriveService {
   }
   
   /// Delete a backup file by name
-  Future<void> _deleteBackup(String fileName) async {
+  /// Returns true if deleted, false if not found or error
+  Future<bool> _deleteBackup(String fileName) async {
     try {
       final query = "name='$fileName' and trashed=false";
       final result = await _driveClient!.listFiles(query: query);
-      if (result.isNotEmpty) {
-        await _driveClient!.deleteFile(result.first.id!);
-        if (kDebugMode) print('Deleted backup: $fileName');
+      if (result.isEmpty) {
+        // File not found - may have already been deleted
+        if (kDebugMode) print('Backup not found (already deleted?): $fileName');
+        return false;
       }
+      await _driveClient!.deleteFile(result.first.id!);
+      if (kDebugMode) print('Deleted backup: $fileName');
+      return true;
     } catch (e) {
+      // 404 means file was already deleted - treat as success
+      if (e.toString().contains('404') || e.toString().contains('File not found')) {
+        if (kDebugMode) print('Backup already deleted: $fileName');
+        return false;
+      }
       if (kDebugMode) print('Failed to delete backup $fileName: $e');
+      return false;
     }
   }
 

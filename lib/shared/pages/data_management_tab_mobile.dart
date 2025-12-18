@@ -49,6 +49,10 @@ class _DataManagementTabState extends State<DataManagementTab> {
   bool _syncEnabled = false;
   bool _signingInProgress = false;
   bool _promptScheduled = false;
+  
+  // Loading state for sign-in and Drive operations
+  bool _isLoading = false;
+  String _loadingMessage = '';
 
   // Backup selection state
   List<Map<String, dynamic>> _availableBackups = [];
@@ -108,12 +112,12 @@ class _DataManagementTabState extends State<DataManagementTab> {
           }
         });
         if (account != null) {
-          if (kDebugMode) print('onCurrentUserChanged: initializing drive client (NO prompt scheduled)');
+          if (kDebugMode) print('onCurrentUserChanged: initializing drive client');
           _initializeDriveClient(account);
           // Load backups when signed in
           _loadAvailableBackups();
-          // Don't auto-prompt on silent sign-in - user can manually fetch if needed.
-          // Interactive sign-ins handle the prompt themselves in _handleSignIn.
+          // Note: Don't call _checkAndPromptIfRemoteNewer here - it's called from sign-in flow
+          // to avoid duplicate prompts
         }
       });
 
@@ -155,9 +159,13 @@ class _DataManagementTabState extends State<DataManagementTab> {
         setState(() {
           _availableBackups = backups;
           _loadingBackups = false;
-          // Select the most recent backup by default
-          if (_availableBackups.isNotEmpty && _selectedBackupFileName == null) {
+          // Validate selected backup exists in new list, or select most recent
+          final selectedExists = _selectedBackupFileName != null && 
+              _availableBackups.any((b) => b['fileName'] == _selectedBackupFileName);
+          if (!selectedExists && _availableBackups.isNotEmpty) {
             _selectedBackupFileName = _availableBackups.first['fileName'] as String?;
+          } else if (_availableBackups.isEmpty) {
+            _selectedBackupFileName = null;
           }
         });
       }
@@ -245,6 +253,10 @@ class _DataManagementTabState extends State<DataManagementTab> {
     
     try {
       _signingInProgress = true; // Prevent state updates during sign-in
+      setState(() {
+        _isLoading = true;
+        _loadingMessage = t(context, 'signing_in');
+      });
       
       final account = await _googleSignIn!.signIn();
       
@@ -255,20 +267,114 @@ class _DataManagementTabState extends State<DataManagementTab> {
         // Don't auto-enable sync yet - let the prompt handler decide
         setState(() {
           _currentUser = account;
+          _loadingMessage = t(context, 'connecting_to_drive');
         });
         
         await _initializeDriveClient(account);
+        
+        // Update loading message before checking backups
+        if (mounted) {
+          setState(() {
+            _loadingMessage = t(context, 'checking_backups');
+          });
+        }
+        
         // Schedule the prompt; this is resilient to the ordering of
         // onCurrentUserChanged vs this handler resuming.
+        // The prompt handler will also load backups for the UI.
+        // NOTE: Loading will be hidden by _schedulePromptForAccount when done
         _schedulePromptForAccount(account);
-        
-        // Load available backups after sign-in
-        _loadAvailableBackups();
+      } else {
+        // No account - hide loading
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _loadingMessage = '';
+          });
+        }
       }
     } catch (e) {
       _signingInProgress = false; // Clear flag on error
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _loadingMessage = '';
+        });
+      }
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('${t(context, 'sign_in_failed')}: ${e.toString().split(',').first}')));
+    }
+  }
+
+  /// Check if remote data is newer than local and prompt user to fetch if so
+  /// This runs on every sign-in (silent or interactive) to ensure user is aware of newer data
+  Future<void> _checkAndPromptIfRemoteNewer() async {
+    if (!mounted) return;
+    
+    // Wait a moment for drive client to be fully initialized
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (!mounted) return;
+    
+    try {
+      if (kDebugMode) print('_checkAndPromptIfRemoteNewer: Checking if remote has newer data...');
+      
+      final isNewer = await AllAppsDriveService.instance.isRemoteNewer();
+      
+      if (kDebugMode) print('_checkAndPromptIfRemoteNewer: Remote is newer = $isNewer');
+      
+      if (!isNewer || !mounted) {
+        // Local is up to date - make sure uploads are unblocked
+        AllAppsDriveService.instance.unblockUploads();
+        return;
+      }
+      
+      // Remote has newer data - prompt user
+      final shouldFetch = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false, // User must make a choice
+        builder: (dialogContext) => AlertDialog(
+          title: Text(t(context, 'newer_data_available')),
+          content: Text(t(context, 'newer_data_prompt')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(t(context, 'keep_local')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(t(context, 'fetch')),
+            ),
+          ],
+        ),
+      );
+      
+      if (shouldFetch == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(t(context, 'fetching_data')),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        
+        await _fetchFromGoogle();
+        // After successful restore, unblock uploads
+        AllAppsDriveService.instance.unblockUploads();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t(context, 'fetch_success'))),
+          );
+        }
+      } else {
+        // User chose to keep local data - unblock uploads so local changes sync
+        AllAppsDriveService.instance.unblockUploads();
+        if (kDebugMode) print('User chose to keep local data - uploads unblocked');
+      }
+    } catch (e) {
+      if (kDebugMode) print('_checkAndPromptIfRemoteNewer: Error - $e');
+      // On error, unblock uploads to avoid permanently blocking sync
+      AllAppsDriveService.instance.unblockUploads();
     }
   }
 
@@ -279,10 +385,71 @@ class _DataManagementTabState extends State<DataManagementTab> {
   // Also skip if sync is already enabled (backward compat for existing users).
   final settingsBox = Hive.box('settings');
   final alreadyPrompted = settingsBox.get('syncPromptedMobile', defaultValue: false);
-  if (alreadyPrompted) return;
-  if (_syncEnabled) return;  // Backward compatibility: don't prompt if sync already configured
-  if (_lastPromptedAccountId == account.id) return;
+  if (alreadyPrompted) {
+    // Still load backups for UI even if we skip the prompt
+    _loadAvailableBackups();
+    // IMPORTANT: Enable sync even if already prompted (user signed in again)
+    if (!_syncEnabled) {
+      settingsBox.put('syncEnabled', true);
+      if (mounted) setState(() => _syncEnabled = true);
+      await AllAppsDriveService.instance.setSyncEnabled(true);
+      if (kDebugMode) print('_maybePromptFetchAfterInteractiveSignIn: Already prompted, enabling sync automatically');
+    }
+    return;
+  }
+  if (_syncEnabled) {
+    // Still load backups for UI even if we skip the prompt
+    _loadAvailableBackups();
+    return;  // Backward compatibility: don't prompt if sync already configured
+  }
+  if (_lastPromptedAccountId == account.id) {
+    // Still load backups for UI even if we skip the prompt
+    _loadAvailableBackups();
+    // Enable sync for this account
+    settingsBox.put('syncEnabled', true);
+    if (mounted) setState(() => _syncEnabled = true);
+    await AllAppsDriveService.instance.setSyncEnabled(true);
+    return;
+  }
   if (!mounted) return;
+
+    // Check if there's data on Google Drive before prompting
+    // This also loads backups for the UI
+    if (kDebugMode) print('_maybePromptFetchAfterInteractiveSignIn: Checking if Drive has data...');
+    List<Map<String, dynamic>> backups = [];
+    try {
+      backups = await AllAppsDriveService.instance.listAvailableBackups();
+      if (kDebugMode) print('_maybePromptFetchAfterInteractiveSignIn: Drive has ${backups.length} backup(s)');
+      // Update UI with loaded backups
+      if (mounted) {
+        setState(() {
+          _availableBackups = backups;
+          _loadingBackups = false;
+          if (_availableBackups.isNotEmpty && _selectedBackupFileName == null) {
+            _selectedBackupFileName = _availableBackups.first['fileName'] as String?;
+          }
+        });
+      }
+      
+      if (backups.isEmpty) {
+        if (kDebugMode) print('_maybePromptFetchAfterInteractiveSignIn: No data on Drive, skipping fetch prompt');
+        // Mark as prompted and enable sync anyway so new data will be backed up
+        _lastPromptedAccountId = account.id;
+        Hive.box('settings').put('syncPromptedMobile', true);
+        Hive.box('settings').put('syncEnabled', true);
+        if (mounted) setState(() => _syncEnabled = true);
+        await AllAppsDriveService.instance.setSyncEnabled(true);
+        return;
+      }
+      if (kDebugMode) print('_maybePromptFetchAfterInteractiveSignIn: Found ${backups.length} backup(s) on Drive');
+    } catch (e) {
+      if (kDebugMode) print('_maybePromptFetchAfterInteractiveSignIn: Error checking Drive backups: $e');
+      if (mounted) setState(() => _loadingBackups = false);
+      // If we can't check, skip the prompt but don't mark as prompted
+      return;
+    }
+
+    if (!mounted) return;
 
     // Attempt to show the dialog. Only mark this account as 'prompted' after
     // the dialog successfully completes so that failures (for example if the
@@ -365,6 +532,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
     if (kDebugMode) print('_schedulePromptForAccount: account.id=${account.id}, lastPrompted=$lastPrompted');
     if (lastPrompted == account.id) {
       if (kDebugMode) print('_schedulePromptForAccount: Already prompted this account, skipping');
+      // Hide loading since we're not showing a prompt
+      if (mounted) setState(() { _isLoading = false; _loadingMessage = ''; });
       return;
     }
 
@@ -377,6 +546,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
         await _maybePromptFetchAfterInteractiveSignIn(account);
       } catch (e) {
         // Swallow scheduling errors silently.
+      } finally {
+        // Hide loading after prompt flow completes
+        if (mounted) setState(() { _isLoading = false; _loadingMessage = ''; });
       }
     });
   }
@@ -455,6 +627,28 @@ class _DataManagementTabState extends State<DataManagementTab> {
       if (kDebugMode) print('_fetchFromGoogle: Not authenticated, returning');
       return;
     }
+    
+    // Show warning dialog - user must confirm before data is replaced
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t(context, 'warning')),
+        content: Text(t(context, 'import_warning')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t(context, 'cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(t(context, 'continue')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
     
     String? content;
     
@@ -1004,6 +1198,24 @@ class _DataManagementTabState extends State<DataManagementTab> {
     
     // Platform availability check - Mobile only (Android/iOS)
     final bool driveAvailable = PlatformHelper.isMobile;
+
+    // Show loading overlay during sign-in/Drive operations
+    if (_isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              _loadingMessage,
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),

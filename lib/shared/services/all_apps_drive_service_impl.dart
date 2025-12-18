@@ -34,6 +34,26 @@ class AllAppsDriveService {
   WindowsDriveServiceWrapper? _windowsDriveService;
   
   final StreamController<int> _uploadCountController = StreamController<int>.broadcast();
+  
+  /// Flag to block uploads when remote has newer data.
+  /// This prevents overwriting newer Drive data before user decides what to do.
+  bool _uploadsBlocked = false;
+  
+  /// Stream to notify UI when uploads are blocked due to newer remote data
+  final StreamController<bool> _uploadsBlockedController = StreamController<bool>.broadcast();
+  
+  /// Whether uploads are currently blocked (remote has newer data)
+  bool get uploadsBlocked => _uploadsBlocked;
+  
+  /// Stream that emits when upload blocking state changes
+  Stream<bool> get onUploadsBlockedChanged => _uploadsBlockedController.stream;
+  
+  /// Debounce timer for scheduling uploads (prevents rapid rebuilding of JSON)
+  Timer? _uploadDebounceTimer;
+  static const Duration _uploadDebounceDelay = Duration(milliseconds: 1000);
+  
+  /// Flag to prevent concurrent uploads
+  bool _uploadInProgress = false;
 
   AllAppsDriveService._() {
     _initializePlatformService();
@@ -264,14 +284,65 @@ class AllAppsDriveService {
     }
   }
 
+  /// Block uploads (called when remote has newer data)
+  void blockUploads() {
+    if (!_uploadsBlocked) {
+      _uploadsBlocked = true;
+      _uploadsBlockedController.add(true);
+      if (kDebugMode) print('AllAppsDriveService: ⚠️ Uploads BLOCKED - remote has newer data');
+    }
+  }
+  
+  /// Unblock uploads (called after user fetches data or dismisses the prompt)
+  void unblockUploads() {
+    if (_uploadsBlocked) {
+      _uploadsBlocked = false;
+      _uploadsBlockedController.add(false);
+      if (kDebugMode) print('AllAppsDriveService: ✓ Uploads UNBLOCKED');
+    }
+  }
+
   /// Schedule debounced upload from box (background sync - no UI notifications)
   /// The box parameter is optional - if not provided, entries will be fetched from the standard entries box
+  /// Uses debouncing to coalesce rapid changes (e.g., multiple reorders) into a single upload
   void scheduleUploadFromBox([Box<InventoryEntry>? box]) {
-    if (kDebugMode) print('AllAppsDriveService: scheduleUploadFromBox called - syncEnabled=$syncEnabled, isAuthenticated=$isAuthenticated');
+    if (kDebugMode) print('AllAppsDriveService: scheduleUploadFromBox called - syncEnabled=$syncEnabled, isAuthenticated=$isAuthenticated, uploadsBlocked=$_uploadsBlocked');
     if (!syncEnabled || !isAuthenticated) {
       if (kDebugMode) print('AllAppsDriveService: ⚠️ Upload skipped - sync not enabled or not authenticated');
       return;
     }
+    
+    // SAFETY: Don't upload if remote has newer data - would overwrite it!
+    if (_uploadsBlocked) {
+      if (kDebugMode) print('AllAppsDriveService: ⚠️ Upload BLOCKED - remote has newer data, user must fetch or dismiss first');
+      return;
+    }
+
+    // Cancel any pending upload and reset the timer
+    // This ensures rapid changes (like multiple reorders) are coalesced
+    _uploadDebounceTimer?.cancel();
+    
+    _uploadDebounceTimer = Timer(_uploadDebounceDelay, () async {
+      await _performDebouncedUpload(box);
+    });
+    
+    if (kDebugMode) print('AllAppsDriveService: Upload scheduled (debounced ${_uploadDebounceDelay.inMilliseconds}ms)');
+  }
+  
+  /// Internal method to perform the actual upload after debounce
+  Future<void> _performDebouncedUpload([Box<InventoryEntry>? box]) async {
+    // Prevent concurrent uploads
+    if (_uploadInProgress) {
+      if (kDebugMode) print('AllAppsDriveService: _performDebouncedUpload skipped - upload already in progress');
+      return;
+    }
+    
+    if (!syncEnabled || !isAuthenticated || _uploadsBlocked) {
+      if (kDebugMode) print('AllAppsDriveService: _performDebouncedUpload skipped - conditions not met');
+      return;
+    }
+    
+    _uploadInProgress = true;
 
     try {
       // Get I Am definitions
@@ -341,14 +412,21 @@ class AllAppsDriveService {
       // Save the upload timestamp locally (fire and forget)
       _saveLastModified(now);
       
-      // Schedule upload (debounced)
+      // Perform upload directly (debouncing already happened at this level)
       if (PlatformHelper.isWindows) {
-        _windowsDriveService!.scheduleUpload(jsonString);
+        await _windowsDriveService!.driveService.uploadFile(
+          fileName: _windowsDriveService!.driveService.config.fileName,
+          content: jsonString,
+        );
       } else {
-        _mobileDriveService!.scheduleUpload(jsonString);
+        await _mobileDriveService!.uploadContent(jsonString);
       }
+      if (kDebugMode) print('AllAppsDriveService: Debounced upload completed');
     } catch (e) {
+      if (kDebugMode) print('AllAppsDriveService: Background sync failed: $e');
       // Background sync failed, will retry on next change
+    } finally {
+      _uploadInProgress = false;
     }
   }
 
@@ -490,64 +568,23 @@ class AllAppsDriveService {
     return null;
   }
 
-  /// Check if remote data is newer than local and auto-sync if needed
-  /// SAFETY: Only syncs if local has NO data (fresh install) AND remote has data.
-  /// If local has data, NEVER auto-overwrite - user must explicitly fetch.
-  Future<bool> checkAndSyncIfNeeded() async {
-    if (kDebugMode) print('AllAppsDriveService: Checking for remote updates...');
-    
-    if (!syncEnabled) {
-      if (kDebugMode) print('AllAppsDriveService: Sync disabled, skipping check');
-      return false;
-    }
+  /// Check if remote data is newer than local data
+  /// Returns true if remote is newer, false otherwise
+  /// Does NOT modify any data - only compares timestamps
+  Future<bool> isRemoteNewer() async {
+    if (kDebugMode) print('AllAppsDriveService: isRemoteNewer() - checking timestamps...');
     
     if (!isAuthenticated) {
-      if (kDebugMode) print('AllAppsDriveService: Not authenticated, skipping check');
+      if (kDebugMode) print('AllAppsDriveService: isRemoteNewer() - not authenticated');
       return false;
     }
 
     try {
-      // SAFETY CHECK: Count local entries across all apps
-      // If ANY app has data, DO NOT auto-sync from remote (prevents data loss)
-      final entriesBox = Hive.box<InventoryEntry>('entries');
-      final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
-      final peopleBox = Hive.box<Person>('people_box');
-      final reflectionsBox = Hive.box<ReflectionEntry>('reflections_box');
-      final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
-      final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
-      final morningRitualItemsBox = Hive.box<RitualItem>('morning_ritual_items');
-      final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
+      // Get local timestamp
+      final localTimestamp = await _getLocalLastModified();
+      if (kDebugMode) print('AllAppsDriveService: isRemoteNewer() - local timestamp: ${localTimestamp?.toIso8601String() ?? "null"}');
       
-      // Count I Am definitions excluding the default "Not Set" entry
-      final iAmCount = iAmBox.values.where((def) => def.id != 'not_set').length;
-      
-      final localDataCount = entriesBox.length + 
-                             iAmCount + 
-                             peopleBox.length + 
-                             reflectionsBox.length + 
-                             gratitudeBox.length + 
-                             agnosticismBox.length +
-                             morningRitualItemsBox.length +
-                             morningRitualEntriesBox.length;
-      
-      if (localDataCount > 0) {
-        if (kDebugMode) {
-          print('AllAppsDriveService: ⚠️ LOCAL DATA EXISTS ($localDataCount items) - skipping auto-sync');
-          print('AllAppsDriveService: User must explicitly fetch from Data Management if they want remote data');
-        }
-        // CRITICAL: DO NOT overwrite local data automatically
-        // Instead, just update lastModified to current time to enable future uploads
-        final localTimestamp = await _getLocalLastModified();
-        if (localTimestamp == null) {
-          // No timestamp but has data - set timestamp to now to enable uploads
-          await _saveLastModified(DateTime.now().toUtc());
-          if (kDebugMode) print('AllAppsDriveService: Set lastModified to now (local data exists but no timestamp)');
-        }
-        return false;
-      }
-
-      // Download remote content
-      if (kDebugMode) print('AllAppsDriveService: Downloading remote file...');
+      // Download remote content to check timestamp
       final String? content;
       if (PlatformHelper.isWindows) {
         content = await _windowsDriveService!.downloadContent();
@@ -556,7 +593,7 @@ class AllAppsDriveService {
       }
       
       if (content == null) {
-        if (kDebugMode) print('AllAppsDriveService: No remote file found');
+        if (kDebugMode) print('AllAppsDriveService: isRemoteNewer() - no remote file found');
         return false;
       }
 
@@ -565,127 +602,36 @@ class AllAppsDriveService {
       final remoteTimestampStr = decoded['lastModified'] as String?;
       
       if (remoteTimestampStr == null) {
-        if (kDebugMode) print('AllAppsDriveService: Remote file has no timestamp, skipping auto-sync');
+        if (kDebugMode) print('AllAppsDriveService: isRemoteNewer() - remote file has no timestamp');
         return false;
       }
 
       final remoteTimestamp = DateTime.parse(remoteTimestampStr);
+      if (kDebugMode) print('AllAppsDriveService: isRemoteNewer() - remote timestamp: ${remoteTimestamp.toIso8601String()}');
       
-      // SAFE: Local has NO data, so we can restore from remote
-      if (kDebugMode) {
-        print('AllAppsDriveService: Local is empty, restoring from remote backup');
-        print('  Remote: ${remoteTimestamp.toIso8601String()}');
+      // If no local timestamp, remote is considered newer
+      if (localTimestamp == null) {
+        if (kDebugMode) print('AllAppsDriveService: isRemoteNewer() - no local timestamp, remote is newer');
+        return true;
       }
-
-      // Parse and apply the data
-      final entries = await _parseInventoryContent(content);
-      final iAmDefinitions = decoded['iAmDefinitions'] as List<dynamic>?;
-      final people = decoded['people'] as List<dynamic>?; // Get people data
-      final reflections = decoded['reflections'] as List<dynamic>?; // Get reflections data
-      // Handle both old ('gratitudeEntries') and new ('gratitude') field names
-      final gratitudeData = (decoded['gratitude'] ?? decoded['gratitudeEntries']) as List<dynamic>?; 
-      // Handle both old ('agnosticismPapers') and new ('agnosticism') field names
-      final agnosticismData = (decoded['agnosticism'] ?? decoded['agnosticismPapers']) as List<dynamic>?;
-      // Get morning ritual data
-      final morningRitualItemsData = decoded['morningRitualItems'] as List<dynamic>?;
-      final morningRitualEntriesData = decoded['morningRitualEntries'] as List<dynamic>?;
-      // Get app settings
-      final appSettingsData = decoded['appSettings'] as Map<String, dynamic>?;
-
-      // Update I Am definitions first (need to reopen boxes since we checked them earlier)
-      if (iAmDefinitions != null) {
-        final iAmBoxRestore = Hive.box<IAmDefinition>('i_am_definitions');
-        await iAmBoxRestore.clear();
-        if (kDebugMode) print('AllAppsDriveService: Clearing I Am definitions box...');
-        for (final def in iAmDefinitions) {
-          final id = def['id'] as String;
-          final name = def['name'] as String;
-          final reasonToExist = def['reasonToExist'] as String?;
-          await iAmBoxRestore.add(IAmDefinition(id: id, name: name, reasonToExist: reasonToExist));
-          if (kDebugMode) print('AllAppsDriveService: Added I Am definition: $name (id: $id)');
-        }
-        if (kDebugMode) print('AllAppsDriveService: ✓ Imported ${iAmDefinitions.length} I Am definitions');
-      }
-
-      // Update entries
-      final entriesBoxRestore = Hive.box<InventoryEntry>('entries');
-      await entriesBoxRestore.clear();
-      await entriesBoxRestore.addAll(entries);
-
-      // Update 8th step people (if present in remote data)
-      if (people != null) {
-        final peopleBoxRestore = Hive.box<Person>('people_box');
-        await peopleBoxRestore.clear();
-        for (final personData in people) {
-          final person = Person.fromJson(personData as Map<String, dynamic>);
-          await peopleBoxRestore.put(person.internalId, person);
-        }
-      }
-
-      // Update evening reflections (if present in remote data)
-      if (reflections != null) {
-        final reflectionsBoxRestore = Hive.box<ReflectionEntry>('reflections_box');
-        await reflectionsBoxRestore.clear();
-        for (final reflectionData in reflections) {
-          final reflection = ReflectionEntry.fromJson(reflectionData as Map<String, dynamic>);
-          await reflectionsBoxRestore.put(reflection.internalId, reflection);
-        }
-      }
-
-      // Update gratitude entries (if present in remote data)
-      if (gratitudeData != null) {
-        final gratitudeBoxRestore = Hive.box<GratitudeEntry>('gratitude_box');
-        await gratitudeBoxRestore.clear();
-        for (final gratitudeJson in gratitudeData) {
-          final gratitude = GratitudeEntry.fromJson(gratitudeJson as Map<String, dynamic>);
-          await gratitudeBoxRestore.add(gratitude);
-        }
-      }
-
-      // Update agnosticism barrier/power pairs (if present in remote data)
-      if (agnosticismData != null) {
-        final agnosticismBoxRestore = Hive.box<BarrierPowerPair>('agnosticism_pairs');
-        await agnosticismBoxRestore.clear();
-        for (final pairJson in agnosticismData) {
-          final pair = BarrierPowerPair.fromJson(pairJson as Map<String, dynamic>);
-          await agnosticismBoxRestore.put(pair.id, pair);
-        }
-      }
-
-      // Update morning ritual items (definitions) (if present in remote data)
-      if (morningRitualItemsData != null) {
-        final morningRitualItemsBoxRestore = Hive.box<RitualItem>('morning_ritual_items');
-        await morningRitualItemsBoxRestore.clear();
-        for (final itemJson in morningRitualItemsData) {
-          final item = RitualItem.fromJson(itemJson as Map<String, dynamic>);
-          await morningRitualItemsBoxRestore.put(item.id, item);
-        }
-      }
-
-      // Update morning ritual entries (daily completions) (if present in remote data)
-      if (morningRitualEntriesData != null) {
-        final morningRitualEntriesBoxRestore = Hive.box<MorningRitualEntry>('morning_ritual_entries');
-        await morningRitualEntriesBoxRestore.clear();
-        for (final entryJson in morningRitualEntriesData) {
-          final entry = MorningRitualEntry.fromJson(entryJson as Map<String, dynamic>);
-          await morningRitualEntriesBoxRestore.put(entry.id, entry);
-        }
-      }
-
-      // Update app settings (if present in remote data)
-      if (appSettingsData != null) {
-        await AppSettingsService.importFromSync(appSettingsData);
-      }
-
-      // Save the remote timestamp as our new local timestamp
-      await _saveLastModified(remoteTimestamp);
-
-      if (kDebugMode) print('AllAppsDriveService: ✓ Auto-sync complete (${entries.length} entries, ${iAmDefinitions?.length ?? 0} I Ams, ${people?.length ?? 0} people, ${reflections?.length ?? 0} reflections, ${gratitudeData?.length ?? 0} gratitude, ${agnosticismData?.length ?? 0} agnosticism, ${morningRitualItemsData?.length ?? 0} morning ritual items, ${morningRitualEntriesData?.length ?? 0} morning ritual entries)');
-      return true;
+      
+      // Compare timestamps
+      final isNewer = remoteTimestamp.isAfter(localTimestamp);
+      if (kDebugMode) print('AllAppsDriveService: isRemoteNewer() - remote is ${isNewer ? "NEWER" : "not newer"} than local');
+      return isNewer;
     } catch (e) {
-      if (kDebugMode) print('AllAppsDriveService: ❌ Auto-sync check failed - $e');
+      if (kDebugMode) print('AllAppsDriveService: isRemoteNewer() - error: $e');
       return false;
     }
+  }
+
+  /// @deprecated This method always returns false. Auto-restore is disabled for data safety.
+  /// Use [isRemoteNewer] to check if remote has newer data, then prompt user to fetch manually.
+  /// Local data is ONLY modified through explicit user action (tap "Restore from backup").
+  @Deprecated('Auto-restore disabled. Use isRemoteNewer() and prompt user instead.')
+  Future<bool> checkAndSyncIfNeeded() async {
+    // SAFETY: Never automatically modify local data.
+    return false;
   }
 
   /// Notify upload count to listeners

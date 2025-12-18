@@ -417,19 +417,30 @@ class WindowsDriveService {
   }
 
   /// Delete a specific backup file by name
-  Future<void> _deleteBackupFile(String fileName) async {
+  /// Returns true if deleted, false if not found or error
+  Future<bool> _deleteBackupFile(String fileName) async {
     try {
       final client = await _authService.createDriveClient();
-      if (client == null) return;
+      if (client == null) return false;
       
       // Find the file
       final files = await client.findBackupFiles(fileName);
-      if (files.isNotEmpty) {
-        await client.deleteFile(files.first.id!);
-        if (kDebugMode) print('Windows Drive: Deleted backup: $fileName');
+      if (files.isEmpty) {
+        // File not found - may have already been deleted
+        if (kDebugMode) print('Windows Drive: Backup not found (already deleted?): $fileName');
+        return false;
       }
+      await client.deleteFile(files.first.id!);
+      if (kDebugMode) print('Windows Drive: Deleted backup: $fileName');
+      return true;
     } catch (e) {
+      // 404 means file was already deleted - treat as success
+      if (e.toString().contains('404') || e.toString().contains('File not found')) {
+        if (kDebugMode) print('Windows Drive: Backup already deleted: $fileName');
+        return false;
+      }
       if (kDebugMode) print('Windows Drive: Failed to delete backup $fileName: $e');
+      return false;
     }
   }
 }

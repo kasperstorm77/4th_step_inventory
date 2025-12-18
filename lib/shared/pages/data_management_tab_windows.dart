@@ -74,6 +74,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
         // Load backups after auth is confirmed
         if (signedIn) {
           _loadAvailableBackups();
+          // Check if remote has newer data and prompt user if so
+          _checkAndPromptIfRemoteNewer();
         }
       }
     } catch (e) {
@@ -107,9 +109,13 @@ class _DataManagementTabState extends State<DataManagementTab> {
         setState(() {
           _availableBackups = backups;
           _loadingBackups = false;
-          // Select the most recent backup by default
-          if (_availableBackups.isNotEmpty && _selectedBackupFileName == null) {
+          // Validate selected backup exists in new list, or select most recent
+          final selectedExists = _selectedBackupFileName != null && 
+              _availableBackups.any((b) => b['fileName'] == _selectedBackupFileName);
+          if (!selectedExists && _availableBackups.isNotEmpty) {
             _selectedBackupFileName = _availableBackups.first['fileName'] as String?;
+          } else if (_availableBackups.isEmpty) {
+            _selectedBackupFileName = null;
           }
         });
       }
@@ -129,6 +135,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
       setState(() {
         _isSignedIn = false;
         _syncEnabled = false;
+        // Clear backup selection on sign out
+        _availableBackups = [];
+        _selectedBackupFileName = null;
       });
       Hive.box('settings').put('syncEnabled', false);
       
@@ -151,15 +160,45 @@ class _DataManagementTabState extends State<DataManagementTab> {
             SnackBar(content: Text(t(context, 'signed_in'))),
           );
           
-          // Load available backups after sign-in
-          _loadAvailableBackups();
-          
           // Only show sync enable dialog if user hasn't already configured sync
           // Check if they've ever been prompted (syncPrompted flag) or if sync is already enabled
           final settingsBox = Hive.box('settings');
           final alreadyPrompted = settingsBox.get('syncPromptedWindows', defaultValue: false);
+          
+          // Check for backups FIRST (used for both prompt logic and loading backup list)
+          List<Map<String, dynamic>> backups = [];
+          try {
+            backups = await AllAppsDriveService.instance.listAvailableBackups();
+            // Update UI with loaded backups
+            if (mounted) {
+              setState(() {
+                _availableBackups = backups;
+                _loadingBackups = false;
+                if (_availableBackups.isNotEmpty && _selectedBackupFileName == null) {
+                  _selectedBackupFileName = _availableBackups.first['fileName'] as String?;
+                }
+              });
+            }
+          } catch (e) {
+            if (kDebugMode) print('_handleSignIn: Error loading backups: $e');
+            if (mounted) setState(() => _loadingBackups = false);
+          }
+          
           if (!alreadyPrompted && !_syncEnabled) {
-            _showSyncEnableDialog();
+            if (backups.isEmpty) {
+              if (kDebugMode) print('_handleSignIn: No data on Drive, skipping fetch prompt');
+              // Mark as prompted and enable sync anyway so new data will be backed up
+              Hive.box('settings').put('syncPromptedWindows', true);
+              Hive.box('settings').put('syncEnabled', true);
+              setState(() => _syncEnabled = true);
+              await AllAppsDriveService.instance.setSyncEnabled(true);
+            } else {
+              if (kDebugMode) print('_handleSignIn: Found ${backups.length} backup(s) on Drive, showing prompt');
+              _showSyncEnableDialog();
+            }
+          } else {
+            // Already prompted or sync enabled - check if remote has newer data
+            _checkAndPromptIfRemoteNewer();
           }
         }
       } else {
@@ -172,10 +211,67 @@ class _DataManagementTabState extends State<DataManagementTab> {
     }
   }
 
+  /// Check if remote data is newer than local and prompt user to fetch if so
+  Future<void> _checkAndPromptIfRemoteNewer() async {
+    if (!mounted) return;
+    
+    try {
+      if (kDebugMode) {
+        print('_checkAndPromptIfRemoteNewer: Starting check...');
+        print('_checkAndPromptIfRemoteNewer: isAuthenticated=${AllAppsDriveService.instance.isAuthenticated}');
+        print('_checkAndPromptIfRemoteNewer: syncEnabled=${AllAppsDriveService.instance.syncEnabled}');
+      }
+      
+      final isNewer = await AllAppsDriveService.instance.isRemoteNewer();
+      
+      if (kDebugMode) print('_checkAndPromptIfRemoteNewer: Remote is newer = $isNewer');
+      
+      if (!isNewer || !mounted) {
+        // Local is up to date - make sure uploads are unblocked
+        AllAppsDriveService.instance.unblockUploads();
+        return;
+      }
+      
+      // Remote has newer data - prompt user
+      final shouldFetch = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false, // User must make a choice
+        builder: (dialogContext) => AlertDialog(
+          title: Text(t(context, 'newer_data_available')),
+          content: Text(t(context, 'newer_data_prompt')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(t(context, 'keep_local')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(t(context, 'fetch')),
+            ),
+          ],
+        ),
+      );
+      
+      if (shouldFetch == true && mounted) {
+        await _restoreFromBackup();
+        // After successful restore, unblock uploads
+        AllAppsDriveService.instance.unblockUploads();
+      } else {
+        // User chose to keep local data - unblock uploads so local changes sync
+        AllAppsDriveService.instance.unblockUploads();
+        if (kDebugMode) print('User chose to keep local data - uploads unblocked');
+      }
+    } catch (e) {
+      if (kDebugMode) print('_checkAndPromptIfRemoteNewer: Error - $e');
+      // On error, unblock uploads to avoid permanently blocking sync
+      AllAppsDriveService.instance.unblockUploads();
+    }
+  }
+
   void _showSyncEnableDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(t(context, 'enable_sync')),
         content: Text(t(context, 'enable_sync_prompt')),
         actions: [
@@ -183,22 +279,150 @@ class _DataManagementTabState extends State<DataManagementTab> {
             onPressed: () {
               // Mark as prompted so we don't show again
               Hive.box('settings').put('syncPromptedWindows', true);
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
             },
             child: Text(t(context, 'not_now')),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               // Mark as prompted so we don't show again
               Hive.box('settings').put('syncPromptedWindows', true);
-              _toggleSync(true);
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
+              
+              // Enable sync
+              setState(() => _syncEnabled = true);
+              await Hive.box('settings').put('syncEnabled', true);
+              await AllAppsDriveService.instance.setSyncEnabled(true);
+              
+              // Now ask if they want to fetch existing data from Drive
+              if (mounted && _availableBackups.isNotEmpty) {
+                _showFetchDataPrompt();
+              }
             },
             child: Text(t(context, 'enable')),
           ),
         ],
       ),
     );
+  }
+
+  /// Show prompt asking if user wants to fetch existing data from Drive
+  void _showFetchDataPrompt() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t(context, 'data_found_on_drive')),
+        content: Text(t(context, 'fetch_existing_data_prompt')),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              // User chose to start fresh - their local data will sync to Drive on next change
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(t(context, 'sync_enabled'))),
+                );
+              }
+            },
+            child: Text(t(context, 'start_fresh')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              // User wants to fetch data from Drive - use direct fetch (no extra confirmation)
+              await _fetchFromDriveDirectly();
+            },
+            child: Text(t(context, 'fetch')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Fetch data from Drive without showing confirmation dialog (used after user already confirmed)
+  Future<void> _fetchFromDriveDirectly() async {
+    if (!_isSignedIn) return;
+
+    // Show loading indicator
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(t(context, 'fetching_data')),
+          duration: const Duration(seconds: 10),
+        ),
+      );
+    }
+
+    try {
+      String? content;
+      String? backupFileName = _selectedBackupFileName;
+      
+      // If no backup selected, find the most recent one
+      if (backupFileName == null || backupFileName.isEmpty) {
+        var backups = _availableBackups;
+        if (backups.isEmpty) {
+          backups = await AllAppsDriveService.instance.listAvailableBackups();
+        }
+        
+        if (backups.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(t(context, 'no_data_found'))),
+            );
+          }
+          return;
+        }
+        backupFileName = backups.first['fileName'] as String?;
+        if (kDebugMode) print('_fetchFromDriveDirectly: Using most recent backup: $backupFileName');
+      }
+      
+      if (backupFileName == null || backupFileName.isEmpty) {
+        if (kDebugMode) print('_fetchFromDriveDirectly: No backup file name available');
+        return;
+      }
+      
+      content = await AllAppsDriveService.instance.downloadBackupContent(backupFileName);
+
+      if (content == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t(context, 'no_backup_found'))),
+          );
+        }
+        return;
+      }
+
+      final data = jsonDecode(content) as Map<String, dynamic>;
+      await _importData(data);
+      
+      // Save the lastModified from the backup so isRemoteNewer() knows local is up to date
+      if (data['lastModified'] != null) {
+        final lastModified = DateTime.parse(data['lastModified'] as String);
+        await Hive.box('settings').put('lastModified', lastModified.toIso8601String());
+        if (kDebugMode) print('_fetchFromDriveDirectly: Saved lastModified: ${lastModified.toIso8601String()}');
+      }
+
+      // Calculate counts for success message
+      final entriesCount = data.containsKey('entries') ? (data['entries'] as List).length : 0;
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t(context, 'drive_upload_success').replaceFirst('%s', entriesCount.toString()))),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print('_fetchFromDriveDirectly: Error - $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${t(context, 'import_failed')}: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _toggleSync(bool? value) async {
@@ -221,50 +445,15 @@ class _DataManagementTabState extends State<DataManagementTab> {
     if (!_isSignedIn) return;
     
     try {
-      // Use AllAppsDriveService for syncing all apps
-      final allAppsService = AllAppsDriveService.instance;
+      // Upload current data to Drive
+      // Note: Auto-restore is disabled for data safety. User can manually restore from backup.
+      final entriesBox = Hive.box<InventoryEntry>('entries');
+      await AllAppsDriveService.instance.uploadFromBoxWithNotification(entriesBox);
       
-      // First check if remote data is newer and download if so
-      final didSync = await allAppsService.checkAndSyncIfNeeded();
-      
-      if (didSync) {
-        // Remote was newer, data was downloaded
-        // Get the counts from the local boxes after sync
-        final entriesBox = Hive.box<InventoryEntry>('entries');
-        final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
-        final peopleBox = Hive.box<Person>('people_box');
-        final reflectionsBox = Hive.box<ReflectionEntry>('reflections_box');
-        final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
-        final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
-        final morningRitualItemsBox = Hive.box<RitualItem>('morning_ritual_items');
-        final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(t(context, 'fetch_success_count')
-                  .replaceFirst('%entries%', entriesBox.length.toString())
-                  .replaceFirst('%iams%', iAmBox.length.toString())
-                  .replaceFirst('%people%', peopleBox.length.toString())
-                  .replaceFirst('%reflections%', reflectionsBox.length.toString())
-                  .replaceFirst('%gratitude%', gratitudeBox.length.toString())
-                  .replaceFirst('%agnosticism%', agnosticismBox.length.toString())
-                  .replaceFirst('%ritualItems%', morningRitualItemsBox.length.toString())
-                  .replaceFirst('%ritualEntries%', morningRitualEntriesBox.length.toString())),
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
-      } else {
-        // Local is up to date, upload current data
-        final entriesBox = Hive.box<InventoryEntry>('entries');
-        await allAppsService.uploadFromBoxWithNotification(entriesBox);
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(t(context, 'sync_complete'))),
-          );
-        }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t(context, 'sync_complete'))),
+        );
       }
     } catch (e) {
       if (kDebugMode) print('Sync failed: $e');
@@ -345,6 +534,13 @@ class _DataManagementTabState extends State<DataManagementTab> {
 
       final data = jsonDecode(content) as Map<String, dynamic>;
       await _importData(data);
+
+      // Save the lastModified from the backup so isRemoteNewer() knows local is up to date
+      if (data['lastModified'] != null) {
+        final lastModified = DateTime.parse(data['lastModified'] as String);
+        await Hive.box('settings').put('lastModified', lastModified.toIso8601String());
+        if (kDebugMode) print('_restoreFromBackup: Saved lastModified: ${lastModified.toIso8601String()}');
+      }
 
       // Calculate counts for all app data
       final entriesCount = data.containsKey('entries') ? (data['entries'] as List).length : 0;
@@ -430,7 +626,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
     
     // Field order matches Mobile and Drive upload for consistency
     return {
-      'version': '7.0',
+      'version': '8.0',
       'exportDate': now.toIso8601String(),
       'lastModified': now.toIso8601String(),
       'iAmDefinitions': iAmBox.values.map((def) {

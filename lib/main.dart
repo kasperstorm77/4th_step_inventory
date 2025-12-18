@@ -211,18 +211,18 @@ void main() async {
             await settingsBox.put('syncEnabled', enabled); // Save the default
             await AllAppsDriveService.instance.setSyncEnabled(enabled);
             
-            // Check if remote data is newer and auto-sync if needed
+            // Check if remote has newer data - if so, block uploads until user decides
             if (enabled) {
               try {
-                if (kDebugMode) print('Checking for remote updates...');
-                final synced = await AllAppsDriveService.instance.checkAndSyncIfNeeded();
-                if (synced) {
-                  if (kDebugMode) print('✓ Auto-synced newer data from Google Drive');
+                final remoteNewer = await AllAppsDriveService.instance.isRemoteNewer();
+                if (remoteNewer) {
+                  if (kDebugMode) print('Mobile: ⚠️ Remote has newer data - blocking uploads until user fetches or dismisses');
+                  AllAppsDriveService.instance.blockUploads();
                 } else {
-                  if (kDebugMode) print('✓ Local data is up to date');
+                  if (kDebugMode) print('Mobile: ✓ Local data is up to date');
                 }
               } catch (e) {
-                if (kDebugMode) print('Auto-sync check failed: $e');
+                if (kDebugMode) print('Mobile: Remote check failed: $e');
               }
             }
           }
@@ -238,17 +238,18 @@ void main() async {
           await settingsBox.put('syncEnabled', enabled);
           await AllAppsDriveService.instance.setSyncEnabled(enabled);
           
+          // Check if remote has newer data - if so, block uploads until user decides
           if (enabled) {
             try {
-              if (kDebugMode) print('Checking for remote updates...');
-              final synced = await AllAppsDriveService.instance.checkAndSyncIfNeeded();
-              if (synced) {
-                if (kDebugMode) print('✓ Auto-synced newer data from Google Drive');
+              final remoteNewer = await AllAppsDriveService.instance.isRemoteNewer();
+              if (remoteNewer) {
+                if (kDebugMode) print('Web: ⚠️ Remote has newer data - blocking uploads until user fetches or dismisses');
+                AllAppsDriveService.instance.blockUploads();
               } else {
-                if (kDebugMode) print('✓ Local data is up to date');
+                if (kDebugMode) print('Web: ✓ Local data is up to date');
               }
             } catch (e) {
-              if (kDebugMode) print('Auto-sync check failed: $e');
+              if (kDebugMode) print('Web: Remote check failed: $e');
             }
           }
         } else {
@@ -265,17 +266,18 @@ void main() async {
           await settingsBox.put('syncEnabled', enabled);
           await AllAppsDriveService.instance.setSyncEnabled(enabled);
           
+          // Check if remote has newer data - if so, block uploads until user decides
           if (enabled) {
             try {
-              if (kDebugMode) print('Checking for remote updates...');
-              final synced = await AllAppsDriveService.instance.checkAndSyncIfNeeded();
-              if (synced) {
-                if (kDebugMode) print('✓ Auto-synced newer data from Google Drive');
+              final remoteNewer = await AllAppsDriveService.instance.isRemoteNewer();
+              if (remoteNewer) {
+                if (kDebugMode) print('Desktop: ⚠️ Remote has newer data - blocking uploads until user fetches or dismisses');
+                AllAppsDriveService.instance.blockUploads();
               } else {
-                if (kDebugMode) print('✓ Local data is up to date');
+                if (kDebugMode) print('Desktop: ✓ Local data is up to date');
               }
             } catch (e) {
-              if (kDebugMode) print('Auto-sync check failed: $e');
+              if (kDebugMode) print('Desktop: Remote check failed: $e');
             }
           }
         } else {

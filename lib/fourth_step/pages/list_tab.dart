@@ -200,6 +200,7 @@ class _ListTabState extends State<ListTab> {
                     return ReorderableListView.builder(
                       key: const PageStorageKey<String>('fourth_step_list'),
                       scrollController: widget.scrollController,
+                      buildDefaultDragHandles: false,
                       padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
                       itemCount: entries.length,
                       onReorder: (oldIndex, newIndex) {
