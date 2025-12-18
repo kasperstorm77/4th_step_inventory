@@ -12,7 +12,7 @@ class FormTab extends StatefulWidget {
   final TextEditingController affectController;
   final TextEditingController partController;
   final TextEditingController defectController;
-  final int? editingIndex;
+  final bool isEditing;  // Whether we're editing an existing entry
   final List<String> selectedIAmIds;  // Multiple I Am IDs
   final InventoryCategory selectedCategory;
   final ValueChanged<List<String>>? onIAmIdsChanged;  // Callback for multiple I Ams
@@ -28,7 +28,7 @@ class FormTab extends StatefulWidget {
     required this.affectController,
     required this.partController,
     required this.defectController,
-    this.editingIndex,
+    this.isEditing = false,
     this.selectedIAmIds = const [],
     this.selectedCategory = InventoryCategory.resentment,
     this.onIAmIdsChanged,
@@ -36,8 +36,6 @@ class FormTab extends StatefulWidget {
     this.onSave,
     this.onCancel,
   });
-
-  bool get isEditing => editingIndex != null;
 
   @override
   State<FormTab> createState() => _FormTabState();

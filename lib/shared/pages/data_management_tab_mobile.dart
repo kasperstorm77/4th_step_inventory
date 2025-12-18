@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import '../../fourth_step/models/inventory_entry.dart';
 import '../../fourth_step/models/i_am_definition.dart';
+import '../../fourth_step/services/inventory_service.dart';
 import '../../eighth_step/models/person.dart';
 import '../../evening_ritual/models/reflection_entry.dart';
 import '../../gratitude/models/gratitude_entry.dart';
@@ -538,6 +539,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
           }
         }
         if (kDebugMode) print('Drive restore: Entries box now has ${entriesBox.length} entries');
+        
+        // Assign order values to entries without them (backwards compatibility)
+        await InventoryService.migrateOrderValues();
 
         // Import people (8th step) if present
         if (decoded.containsKey('people')) {

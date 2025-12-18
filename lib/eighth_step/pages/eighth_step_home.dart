@@ -56,13 +56,18 @@ class _EighthStepHomeState extends State<EighthStepHome> {
     localeProvider.changeLocale(Locale(langCode));
   }
 
-  void _openDataManagement() {
-    Navigator.push(
+  void _openDataManagement() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const DataManagementPage(),
       ),
     );
+    // Force rebuild after returning from Data Management
+    // to ensure restored data is displayed
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _showAppSwitcher() async {

@@ -3,14 +3,16 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../fourth_step/models/inventory_entry.dart';
 import '../../fourth_step/models/i_am_definition.dart';
 import '../../fourth_step/services/i_am_service.dart';
+import '../../fourth_step/services/inventory_service.dart';
 import '../../shared/localizations.dart';
 
 class ListTab extends StatefulWidget {
   final Box<InventoryEntry> box;
-  final void Function(int index) onEdit;
-  final void Function(int index)? onDelete;
+  final void Function(dynamic key) onEdit;  // Now uses Hive key instead of index
+  final void Function(dynamic key)? onDelete;  // Now uses Hive key instead of index
   final bool isProcessing;
   final ScrollController? scrollController;
+  final TextEditingController? filterController;  // Filter controller from parent (persistent)
 
   const ListTab({
     super.key,
@@ -19,6 +21,7 @@ class ListTab extends StatefulWidget {
     this.onDelete,
     this.isProcessing = false,
     this.scrollController,
+    this.filterController,
   });
 
   @override
@@ -28,6 +31,8 @@ class ListTab extends StatefulWidget {
 class _ListTabState extends State<ListTab> {
   late final Box<IAmDefinition> _iAmBox;
   final _iAmService = IAmService();
+  final _inventoryService = InventoryService();
+  String _filterText = '';
 
   @override
   void initState() {
@@ -35,12 +40,24 @@ class _ListTabState extends State<ListTab> {
     _iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
     // Listen to I Am box changes to rebuild the list
     _iAmBox.listenable().addListener(_onIAmChanged);
+    // Listen to filter changes from parent controller
+    widget.filterController?.addListener(_onFilterChanged);
+    _filterText = widget.filterController?.text ?? '';
   }
 
   @override
   void dispose() {
     _iAmBox.listenable().removeListener(_onIAmChanged);
+    widget.filterController?.removeListener(_onFilterChanged);
     super.dispose();
+  }
+
+  void _onFilterChanged() {
+    if (mounted) {
+      setState(() {
+        _filterText = widget.filterController?.text ?? '';
+      });
+    }
   }
 
   void _onIAmChanged() {
@@ -119,134 +136,215 @@ class _ListTabState extends State<ListTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: ValueListenableBuilder(
-        valueListenable: widget.box.listenable(),
-        builder: (context, Box<InventoryEntry> box, _) {
-          // Also listen to I Am box changes for name lookups
-          return ValueListenableBuilder(
-            valueListenable: _iAmBox.listenable(),
-            builder: (context, Box<IAmDefinition> iAmBox, _) {
-              if (box.isEmpty) {
-                return Center(child: Text(t(context, 'no_entries')));
-              }
+    return Column(
+      children: [
+        // Filter field (only shown on this tab, but text persists via parent controller)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+          child: SizedBox(
+            height: 36,
+            child: TextField(
+              controller: widget.filterController,
+              style: theme.textTheme.bodyMedium,
+              decoration: InputDecoration(
+                hintText: t(context, 'filter_entries'),
+                hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+                prefixIcon: Icon(Icons.search, size: 18, color: theme.colorScheme.outline),
+                prefixIconConstraints: const BoxConstraints(minWidth: 36),
+                suffixIcon: _filterText.isNotEmpty
+                    ? GestureDetector(
+                        onTap: () => widget.filterController?.clear(),
+                        child: Icon(Icons.clear, size: 18, color: theme.colorScheme.outline),
+                      )
+                    : null,
+                suffixIconConstraints: const BoxConstraints(minWidth: 36),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                isDense: true,
+              ),
+            ),
+          ),
+        ),
+        // List content
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: ValueListenableBuilder(
+              valueListenable: widget.box.listenable(),
+              builder: (context, Box<InventoryEntry> box, _) {
+                // Also listen to I Am box changes for name lookups
+                return ValueListenableBuilder(
+                  valueListenable: _iAmBox.listenable(),
+                  builder: (context, Box<IAmDefinition> iAmBox, _) {
+                    if (box.isEmpty) {
+                      return Center(child: Text(t(context, 'no_entries')));
+                    }
 
-              final entries = box.values.toList().reversed.toList();
+                    // Get entries sorted by order (highest first)
+                    var entries = _inventoryService.getAllEntries();
+                    
+                    // Apply filter if 2+ characters entered (wildcard on resentment field)
+                    if (_filterText.length >= 2) {
+                      final filterLower = _filterText.toLowerCase();
+                      entries = entries.where((e) => 
+                        e.safeResentment.toLowerCase().contains(filterLower)
+                      ).toList();
+                    }
+                    
+                    if (entries.isEmpty) {
+                      return Center(child: Text(t(context, 'no_matching_entries')));
+                    }
 
-              return ListView.builder(
-                  key: const PageStorageKey<String>('fourth_step_list'),
-                  controller: widget.scrollController,
-                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
-                  itemCount: entries.length,
-                  itemBuilder: (context, index) {
-                    final e = entries[index];
-                    final reversedIndex = box.length - 1 - index;
-                    final iAmNames = _getIAmNames(e.effectiveIAmIds);
-                    final category = e.effectiveCategory;
+                    return ReorderableListView.builder(
+                      key: const PageStorageKey<String>('fourth_step_list'),
+                      scrollController: widget.scrollController,
+                      padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
+                      itemCount: entries.length,
+                      onReorder: (oldIndex, newIndex) {
+                        // Adjust newIndex for the removal
+                        if (newIndex > oldIndex) {
+                          newIndex -= 1;
+                        }
+                        _inventoryService.reorderEntries(oldIndex, newIndex);
+                      },
+                      proxyDecorator: (child, index, animation) {
+                        return AnimatedBuilder(
+                          animation: animation,
+                          builder: (context, child) {
+                            final elevation = Tween<double>(begin: 0, end: 6).evaluate(animation);
+                            return Material(
+                              elevation: elevation,
+                              borderRadius: BorderRadius.circular(12),
+                              child: child,
+                            );
+                          },
+                          child: child,
+                        );
+                      },
+                itemBuilder: (context, index) {
+                  final e = entries[index];
+                  final iAmNames = _getIAmNames(e.effectiveIAmIds);
+                  final category = e.effectiveCategory;
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Category chip
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: Chip(
-                                avatar: Icon(
-                                  _getCategoryIcon(category),
-                                  size: 16,
+                  return Card(
+                    key: ValueKey(e.id), // Use unique ID as key for reordering
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Category chip and drag handle row
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Chip(
+                                  avatar: Icon(
+                                    _getCategoryIcon(category),
+                                    size: 16,
+                                  ),
+                                  label: Text(
+                                    t(context, _getCategoryLabelKey(category)),
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
                                 ),
-                                label: Text(
-                                  t(context, _getCategoryLabelKey(category)),
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
                               ),
-                            ),
-                            Text("${t(context, _getField1LabelKey(category))}: ${e.safeResentment}"),
-                            // Display all I Am names (stacked if multiple)
-                            if (iAmNames.isNotEmpty)
-                              ...iAmNames.map((name) => Text(
-                                "${t(context, 'i_am')}: $name",
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontWeight: FontWeight.w600,
+                              ReorderableDragStartListener(
+                                index: index,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Icon(
+                                    Icons.drag_handle,
+                                    color: theme.colorScheme.outline,
+                                  ),
                                 ),
-                              )),
-                            Text("${t(context, _getField2LabelKey(category))}: ${e.safeReason}"),
-                            Text("${t(context, 'affects_my')}: ${e.safeAffect}"),
-                            Text("${t(context, 'my_part')}: ${e.myTake ?? ''}"),
-                            Text("${t(context, 'shortcoming_field')}: ${e.shortcomings ?? ''}"),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit),
-                                  tooltip: t(context, 'edit_entry'),
-                                  onPressed: () => widget.onEdit(reversedIndex),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete),
-                                  tooltip: t(context, 'delete_entry'),
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (_) => AlertDialog(
-                                        title: Text(t(context, 'delete_entry')),
-                                        content: Text(t(context, 'delete_confirm')),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context, false),
-                                            child: Text(t(context, 'cancel')),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text("${t(context, _getField1LabelKey(category))}: ${e.safeResentment}"),
+                          // Display all I Am names (stacked if multiple)
+                          if (iAmNames.isNotEmpty)
+                            ...iAmNames.map((name) => Text(
+                              "${t(context, 'i_am')}: $name",
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            )),
+                          Text("${t(context, _getField2LabelKey(category))}: ${e.safeReason}"),
+                          Text("${t(context, 'affects_my')}: ${e.safeAffect}"),
+                          Text("${t(context, 'my_part')}: ${e.myTake ?? ''}"),
+                          Text("${t(context, 'shortcoming_field')}: ${e.shortcomings ?? ''}"),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit),
+                                tooltip: t(context, 'edit_entry'),
+                                onPressed: () => widget.onEdit(e.key),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete),
+                                tooltip: t(context, 'delete_entry'),
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title: Text(t(context, 'delete_entry')),
+                                      content: Text(t(context, 'delete_confirm')),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, false),
+                                          child: Text(t(context, 'cancel')),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          child: Text(
+                                            t(context, 'delete'),
+                                            style: TextStyle(
+                                                color:
+                                                    theme.colorScheme.error),
                                           ),
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context, true),
-                                            child: Text(
-                                              t(context, 'delete'),
-                                              style: TextStyle(
-                                                  color:
-                                                      theme.colorScheme.error),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
+                                        ),
+                                      ],
+                                    ),
+                                  );
 
-                                    if (confirm ?? false) {
-                                      if (reversedIndex >= 0 &&
-                                          reversedIndex < box.length) {
-                                        await box.deleteAt(reversedIndex);
-                                        widget.onDelete?.call(reversedIndex);
-                                        if (!context.mounted) return;
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                              content: Text(
-                                                  t(context, 'entry_deleted'))),
-                                        );
-                                      }
-                                    }
-                                  },
-                                ),
+                                  if (confirm ?? false) {
+                                    await _inventoryService.deleteEntryByKey(e.key);
+                                    widget.onDelete?.call(e.key);
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(
+                                      SnackBar(
+                                          content: Text(
+                                              t(context, 'entry_deleted'))),
+                                    );
+                                  }
+                                },
+                              ),
                             ],
                           ),
                         ],
                       ),
                     ),
                   );
-                },
-              );
-            },
-          );
-        },
-      ),
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -27,6 +27,7 @@ import '../../gratitude/models/gratitude_entry.dart';
 import '../../agnosticism/models/barrier_power_pair.dart';
 import '../../morning_ritual/models/ritual_item.dart';
 import '../../morning_ritual/models/morning_ritual_entry.dart';
+import '../../fourth_step/services/inventory_service.dart';
 import '../localizations.dart';
 import '../services/all_apps_drive_service_impl.dart';
 import '../services/app_settings_service.dart';
@@ -567,6 +568,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
         }
       }
       if (kDebugMode) debugPrint('Windows import: Entries box now has ${entriesBox.length} entries');
+      
+      // Assign order values to entries without them (backwards compatibility)
+      await InventoryService.migrateOrderValues();
     }
 
     if (data.containsKey('people')) {

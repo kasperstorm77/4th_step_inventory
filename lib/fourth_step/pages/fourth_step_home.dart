@@ -35,14 +35,17 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
   final _partController = TextEditingController();
   final _defectController = TextEditingController();
 
+  // Filter controller for entries list (persistent across tab switches)
+  final _filterController = TextEditingController();
+
   // Scroll controller for list tab to preserve scroll position
   final _listScrollController = ScrollController();
   double? _savedScrollPosition;
 
-  int? editingIndex;
+  dynamic editingKey;  // Hive key of entry being edited (null if adding new)
   List<String> selectedIAmIds = [];  // Selected I Am definition IDs (multiple)
   InventoryCategory selectedCategory = InventoryCategory.resentment;  // Selected category
-  bool get isEditing => editingIndex != null;
+  bool get isEditing => editingKey != null;
 
   @override
   void initState() {
@@ -65,20 +68,21 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
     _affectController.dispose();
     _partController.dispose();
     _defectController.dispose();
+    _filterController.dispose();
     _tabController.dispose();
     _listScrollController.dispose();
     super.dispose();
   }
 
-  void _editEntry(int index) {
-    final entry = _inventoryService.getEntryAt(index);
+  void _editEntry(dynamic key) {
+    final entry = _inventoryService.getEntryByKey(key);
     if (entry != null) {
       // Save scroll position before switching to form tab
       if (_listScrollController.hasClients) {
         _savedScrollPosition = _listScrollController.offset;
       }
       setState(() {
-        editingIndex = index;
+        editingKey = key;
         selectedIAmIds = List<String>.from(entry.effectiveIAmIds);
         selectedCategory = entry.effectiveCategory;
         _resentmentController.text = entry.safeResentment;
@@ -94,7 +98,7 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
   void _resetForm() {
     final savedPosition = _savedScrollPosition;
     setState(() {
-      editingIndex = null;
+      editingKey = null;
       selectedIAmIds = [];
       selectedCategory = InventoryCategory.resentment;
       _resentmentController.clear();
@@ -122,6 +126,9 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
   }
 
   Future<void> _saveEntry() async {
+    // When editing, preserve the existing entry's ID and order
+    final existingEntry = editingKey != null ? _inventoryService.getEntryByKey(editingKey) : null;
+    
     final entry = InventoryEntry(
       _resentmentController.text,
       _reasonController.text,
@@ -130,10 +137,12 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
       _defectController.text,
       iAmIds: selectedIAmIds.isNotEmpty ? selectedIAmIds : null,
       category: selectedCategory,
+      id: existingEntry?.id,  // Preserve ID when editing
+      order: existingEntry?.order,  // Preserve order when editing
     );
     
-    if (isEditing && editingIndex != null) {
-      await _inventoryService.updateEntry(editingIndex!, entry);
+    if (isEditing && editingKey != null) {
+      await _inventoryService.updateEntryByKey(editingKey, entry);
     } else {
       await _inventoryService.addEntry(entry);
     }
@@ -141,8 +150,8 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
     _resetForm();
   }
 
-  Future<void> _deleteEntry(int index) async {
-    await _inventoryService.deleteEntry(index);
+  Future<void> _deleteEntry(dynamic key) async {
+    await _inventoryService.deleteEntryByKey(key);
   }
 
   void _changeLanguage(String langCode) {
@@ -150,13 +159,18 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
     localeProvider.changeLocale(Locale(langCode));
   }
 
-  void _openDataManagement() {
-    Navigator.push(
+  void _openDataManagement() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const DataManagementPage(),
       ),
     );
+    // Force rebuild after returning from Data Management
+    // to ensure restored data is displayed
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _showAppSwitcher() async {
@@ -265,34 +279,35 @@ class _ModularInventoryHomeState extends State<ModularInventoryHome>
           controller: _tabController,
           children: [
             FormTab(
-            box: Hive.box<InventoryEntry>('entries'),
-            resentmentController: _resentmentController,
-            reasonController: _reasonController,
-            affectController: _affectController,
-            partController: _partController,
-            defectController: _defectController,
-            editingIndex: editingIndex,
-            selectedIAmIds: selectedIAmIds,
-            selectedCategory: selectedCategory,
-            onIAmIdsChanged: (List<String> ids) {
-              setState(() {
-                selectedIAmIds = ids;
-              });
-            },
-            onCategoryChanged: (InventoryCategory category) {
-              setState(() {
-                selectedCategory = category;
-              });
-            },
-            onSave: _saveEntry,
-            onCancel: _resetForm,
-          ),
-          ListTab(
-            box: Hive.box<InventoryEntry>('entries'),
-            onEdit: _editEntry,
-            onDelete: _deleteEntry,
-            scrollController: _listScrollController,
-          ),
+              box: Hive.box<InventoryEntry>('entries'),
+              resentmentController: _resentmentController,
+              reasonController: _reasonController,
+              affectController: _affectController,
+              partController: _partController,
+              defectController: _defectController,
+              isEditing: isEditing,
+              selectedIAmIds: selectedIAmIds,
+              selectedCategory: selectedCategory,
+              onIAmIdsChanged: (List<String> ids) {
+                setState(() {
+                  selectedIAmIds = ids;
+                });
+              },
+              onCategoryChanged: (InventoryCategory category) {
+                setState(() {
+                  selectedCategory = category;
+                });
+              },
+              onSave: _saveEntry,
+              onCancel: _resetForm,
+            ),
+            ListTab(
+              box: Hive.box<InventoryEntry>('entries'),
+              onEdit: _editEntry,
+              onDelete: _deleteEntry,
+              scrollController: _listScrollController,
+              filterController: _filterController,
+            ),
             SettingsTab(box: Hive.box<InventoryEntry>('entries')),
           ],
         ),

@@ -304,6 +304,7 @@ class _SettingsTabState extends State<SettingsTab> {
       
       // Header row
       buffer.writeln([
+        _escapeCsvValue(t(context, 'order')),
         _escapeCsvValue(t(context, 'category')),
         _escapeCsvValue(t(context, 'field1_header')),
         _escapeCsvValue(t(context, 'i_am')),
@@ -323,6 +324,7 @@ class _SettingsTabState extends State<SettingsTab> {
             .join('; ');
         
         buffer.writeln([
+          _escapeCsvValue(entry.order?.toString() ?? ''),
           _escapeCsvValue(_getCategoryName(context, category)),
           _escapeCsvValue(entry.resentment),
           _escapeCsvValue(iAmNames),

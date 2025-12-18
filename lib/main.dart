@@ -7,9 +7,10 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 
-// Import existing files for initialization
+// Import existing files for initiy alization
 import 'fourth_step/models/inventory_entry.dart';
 import 'fourth_step/models/i_am_definition.dart';
+import 'fourth_step/services/inventory_service.dart';
 import 'shared/models/app_entry.dart';
 import 'eighth_step/models/person.dart';
 import 'evening_ritual/models/reflection_entry.dart';
@@ -162,6 +163,9 @@ void main() async {
 
   // Open a separate settings box for sync preferences
   await Hive.openBox('settings');
+
+  // Migration: Assign order values to existing entries (runs once, also called after restore)
+  await InventoryService.migrateOrderValues();
 
   // Initialize I Am definitions with default value
   await IAmService().initializeDefaults();

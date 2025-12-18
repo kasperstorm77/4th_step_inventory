@@ -1,6 +1,9 @@
 import 'package:hive/hive.dart';
+import 'package:uuid/uuid.dart';
 
 part 'inventory_entry.g.dart';
+
+const _uuid = Uuid();
 
 /// Category types for 4th Step inventory entries
 /// Each category has different labels but uses the same internal field structure
@@ -46,6 +49,20 @@ class InventoryEntry extends HiveObject {
   @HiveField(7)
   List<String>? iAmIds;  // Multiple I Am definition IDs (new field)
 
+  @HiveField(8)
+  String? _id;  // Unique identifier for each entry (auto-generated UUID)
+
+  @HiveField(9)
+  int? order;  // Display order (higher = newer, shown first)
+
+  /// Unique identifier for this entry
+  /// Auto-generated on creation, preserved across syncs
+  String get id {
+    // Generate ID if not present (for existing entries without ID)
+    _id ??= _uuid.v4();
+    return _id!;
+  }
+
   InventoryEntry(
     this.resentment,
     this.reason,
@@ -55,7 +72,9 @@ class InventoryEntry extends HiveObject {
     String? iAmId,
     this.iAmIds,
     this.category,
-  }) : _iAmId = iAmId {
+    String? id,
+    this.order,
+  }) : _iAmId = iAmId, _id = id ?? _uuid.v4() {
     // Migration: if old single iAmId is set but iAmIds is empty, migrate it
     if (_iAmId != null && _iAmId!.isNotEmpty && _iAmId != 'null' && (iAmIds == null || iAmIds!.isEmpty)) {
       iAmIds = [_iAmId!];
@@ -123,6 +142,8 @@ class InventoryEntry extends HiveObject {
     final allIAmIds = effectiveIAmIds;
     
     return {
+      'id': id,  // Unique entry ID (auto-generated if not present)
+      if (order != null) 'order': order,  // Display order for reordering
       'resentment': resentment,
       'reason': reason,
       'affect': affect,
@@ -175,6 +196,8 @@ class InventoryEntry extends HiveObject {
       iAmId: parsedIAmId, // Legacy field for Hive compatibility
       iAmIds: parsedIAmIds,
       category: parsedCategory,
+      id: json['id'] as String?,  // Preserve ID if present, else auto-generate
+      order: json['order'] as int?,  // Preserve order if present
     );
   }
 }
