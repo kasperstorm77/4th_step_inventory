@@ -110,7 +110,7 @@ class _PairFormPageState extends State<PairFormPage> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
           children: [
             // Barrier field
             Text(

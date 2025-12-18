@@ -103,7 +103,12 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(t(context, 'gratitude_delete_title')),
+        title: Text(
+          t(context, 'gratitude_delete_title'),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Text(t(context, 'gratitude_delete_confirm')),
         actions: [
           TextButton(
@@ -158,10 +163,30 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
         if (!hideExtras)
           Card(
             margin: const EdgeInsets.all(8.0),
-            child: ListTile(
-              leading: const Icon(Icons.calendar_today),
-              title: Text(DateFormat.yMMMMd().format(today)),
-              subtitle: Text(t(context, 'gratitude_today_subtitle')),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_today),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        DateFormat.yMMMMd().format(today),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        t(context, 'gratitude_today_subtitle'),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -230,7 +255,7 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    if (_editingEntry != null)
+                    if (_isFormExpanded)
                       TextButton(
                         onPressed: _cancelEdit,
                         child: Text(t(context, 'cancel')),
@@ -269,13 +294,13 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
                         Icon(
                           Icons.favorite_border,
                           size: 64,
-                          color: Colors.grey[400],
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                         ),
                         const SizedBox(height: 16),
                         Text(
                           t(context, 'gratitude_no_entries_today'),
                           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Colors.grey[600],
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                               ),
                         ),
                       ],
@@ -284,36 +309,58 @@ class _GratitudeTodayTabState extends State<GratitudeTodayTab> {
                 }
 
                 return ListView.builder(
-                  padding: EdgeInsets.fromLTRB(8, 0, 8, MediaQuery.of(context).padding.bottom + 32),
+                  padding: EdgeInsets.fromLTRB(12, 0, 12, MediaQuery.of(context).padding.bottom + 32),
                   itemCount: entries.length,
                   itemBuilder: (context, index) {
                     final entry = entries[index];
 
                     return Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.favorite, color: Colors.pink),
-                        title: Text(entry.gratitudeTowards),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (entry.gratefulFor.isNotEmpty)
-                              Text(
-                                entry.gratefulFor,
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            const SizedBox(height: 4),
-                            Text(
-                              DateFormat.jm().format(entry.createdAt),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () => _deleteEntry(entry),
-                          color: Colors.red,
-                        ),
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      child: InkWell(
                         onTap: () => _editEntry(entry),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.favorite, color: Colors.pink),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      entry.gratitudeTowards,
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (entry.gratefulFor.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        entry.gratefulFor,
+                                        style: Theme.of(context).textTheme.bodyMedium,
+                                      ),
+                                    ],
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      DateFormat.jm().format(entry.createdAt),
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () => _deleteEntry(entry),
+                                color: Colors.red,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     );
                   },

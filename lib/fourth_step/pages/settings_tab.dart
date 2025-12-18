@@ -35,39 +35,38 @@ class _SettingsTabState extends State<SettingsTab> {
 
           return Column(
             children: [
-              // CSV Export section
               Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.download),
-                    title: Text(t(context, 'export_csv')),
-                    subtitle: Text(t(context, 'export_csv_description')),
-                    trailing: ElevatedButton(
-                      onPressed: () => _exportCsv(context),
-                      child: Text(t(context, 'export')),
-                    ),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _exportCsv(context),
+                    icon: const Icon(Icons.download, size: 18),
+                    label: Text(t(context, 'export_csv')),
                   ),
                 ),
               ),
-              const Divider(),
               Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        t(context, 'i_am_definitions'),
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showAddEditDialog(context, box),
+                    icon: const Icon(Icons.add),
+                    label: Text(t(context, 'add_i_am')),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    t(context, 'i_am_definitions'),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => _showAddEditDialog(context, box),
-                      icon: const Icon(Icons.add),
-                      label: Text(t(context, 'add_i_am')),
-                    ),
-                  ],
+                  ),
                 ),
               ),
               const Divider(),
@@ -80,29 +79,56 @@ class _SettingsTabState extends State<SettingsTab> {
                         ),
                       )
                     : ListView.builder(
-                        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: definitions.length,
                         itemBuilder: (context, index) {
                           final definition = definitions[index];
+                          final theme = Theme.of(context);
                           return Card(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                            child: ListTile(
-                              title: Text(
-                                definition.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: definition.reasonToExist != null &&
-                                      definition.reasonToExist!.isNotEmpty
-                                  ? Text(definition.reasonToExist!)
-                                  : null,
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
                                 children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          t(context, 'i_am_name'),
+                                          style: TextStyle(
+                                            color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        Text(
+                                          definition.name,
+                                          style: theme.textTheme.bodyMedium,
+                                        ),
+                                        if (definition.reasonToExist != null &&
+                                            definition.reasonToExist!.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 4),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  t(context, 'reason_to_exist_optional'),
+                                                  style: TextStyle(
+                                                    color: theme.colorScheme.primary,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  definition.reasonToExist!,
+                                                  style: theme.textTheme.bodyMedium,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
                                   IconButton(
                                     icon: const Icon(Icons.edit),
                                     onPressed: () => _showAddEditDialog(

@@ -66,7 +66,12 @@ class _GratitudeHomeState extends State<GratitudeHome> with SingleTickerProvider
     await showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(t(context, 'select_app')),
+        title: Text(
+          t(context, 'select_app'),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: apps.map((app) {

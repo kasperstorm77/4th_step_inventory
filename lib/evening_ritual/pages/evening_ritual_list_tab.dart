@@ -79,7 +79,7 @@ class _EveningRitualListTabState extends State<EveningRitualListTab> {
           ..sort((a, b) => b.compareTo(a));
 
         return ListView.builder(
-          padding: EdgeInsets.fromLTRB(8, 8, 8, MediaQuery.of(context).padding.bottom + 32),
+          padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).padding.bottom + 32),
           itemCount: sortedDates.length,
           itemBuilder: (context, index) {
             final date = sortedDates[index];
@@ -97,13 +97,13 @@ class _EveningRitualListTabState extends State<EveningRitualListTab> {
     final thinkingEntry = entries.where((e) => e.thinkingFocus != null).firstOrNull;
     
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 6),
       child: InkWell(
         onTap: () => widget.onDateSelected(date),
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -176,9 +176,9 @@ class _EveningRitualListTabState extends State<EveningRitualListTab> {
                               children: [
                                 Text(
                                   t(context, 'thinking_focus_question'),
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  style: TextStyle(
                                     color: Theme.of(context).colorScheme.primary,
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 Text(
@@ -199,9 +199,9 @@ class _EveningRitualListTabState extends State<EveningRitualListTab> {
                                 children: [
                                   Text(
                                     t(context, entry.type.labelKey()),
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    style: TextStyle(
                                       color: Theme.of(context).colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   if (entry.detail != null && entry.detail!.isNotEmpty)
@@ -221,9 +221,9 @@ class _EveningRitualListTabState extends State<EveningRitualListTab> {
                                 children: [
                                   Text(
                                     t(context, entry.type.labelKey()),
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    style: TextStyle(
                                       color: Theme.of(context).colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -309,7 +309,12 @@ class _EveningRitualListTabState extends State<EveningRitualListTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(t(context, 'delete_day')),
+        title: Text(
+          t(context, 'delete_day'),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Text(t(context, 'confirm_delete_day')
             .replaceAll('{date}', DateFormat.yMMMMd().format(date))
             .replaceAll('{count}', '${entries.length}')),

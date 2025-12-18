@@ -231,7 +231,7 @@ class _PaperTabState extends State<PaperTab> with SingleTickerProviderStateMixin
                   _showingFront 
                       ? t(context, 'agnosticism_barriers_title')
                       : t(context, 'agnosticism_powers_title'),
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
@@ -348,7 +348,7 @@ class _PaperTabState extends State<PaperTab> with SingleTickerProviderStateMixin
     }
 
     return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(context).padding.bottom + 32),
+      padding: EdgeInsets.fromLTRB(12, 0, 12, MediaQuery.of(context).padding.bottom + 16),
       controller: scrollController,
       itemCount: pairs.length,
       itemBuilder: (context, index) {
@@ -361,7 +361,7 @@ class _PaperTabState extends State<PaperTab> with SingleTickerProviderStateMixin
   Widget _buildPairBox(BuildContext context, Box<BarrierPowerPair> box, 
       BarrierPowerPair pair, bool isFront) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textStyle = Theme.of(context).textTheme.bodyLarge;
+    final textStyle = Theme.of(context).textTheme.bodyMedium;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -379,7 +379,7 @@ class _PaperTabState extends State<PaperTab> with SingleTickerProviderStateMixin
             : colorScheme.primary.withValues(alpha: 0.5);
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.symmetric(vertical: 6),
           decoration: BoxDecoration(
             color: backgroundColor,
             border: Border.all(color: borderColor, width: 2),

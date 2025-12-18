@@ -117,7 +117,7 @@ class _ArchiveTabState extends State<ArchiveTab> {
           }
 
           return ListView.builder(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 32),
+            padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).padding.bottom + 16),
             itemCount: archivedPairs.length,
             itemBuilder: (context, index) {
               final pair = archivedPairs[index];
@@ -137,9 +137,9 @@ class _ArchiveTabState extends State<ArchiveTab> {
         : '';
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -153,53 +153,37 @@ class _ArchiveTabState extends State<ArchiveTab> {
             const SizedBox(height: 12),
             
             // Barrier section
-            Row(
-              children: [
-                Icon(
-                  Icons.block,
-                  size: 16,
-                  color: colorScheme.error,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  t(context, 'agnosticism_barrier'),
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colorScheme.error,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            Text(
+              t(context, 'agnosticism_barrier'),
+              style: TextStyle(
+                color: colorScheme.error,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            const SizedBox(height: 4),
             Text(
               pair.barrier,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             
-            const Divider(height: 24),
-            
-            // Power section
-            Row(
-              children: [
-                Icon(
-                  Icons.bolt,
-                  size: 16,
-                  color: colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  t(context, 'agnosticism_power'),
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colorScheme.primary,
-                    fontWeight: FontWeight.bold,
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Power section
+                  Text(
+                    t(context, 'agnosticism_power'),
+                    style: TextStyle(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              pair.power,
-              style: Theme.of(context).textTheme.bodyMedium,
+                  Text(
+                    pair.power,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
             ),
             
             const SizedBox(height: 16),

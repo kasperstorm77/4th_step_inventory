@@ -33,6 +33,14 @@ class _ListTabState extends State<ListTab> {
   final _iAmService = IAmService();
   final _inventoryService = InventoryService();
   String _filterText = '';
+  
+  // Category filter - all enabled by default
+  final Set<InventoryCategory> _selectedCategories = {
+    InventoryCategory.resentment,
+    InventoryCategory.fear,
+    InventoryCategory.harms,
+    InventoryCategory.sexualHarms,
+  };
 
   @override
   void initState() {
@@ -47,12 +55,12 @@ class _ListTabState extends State<ListTab> {
 
   /// Builds a heading + value pair where the heading uses the same blue,
   /// bold styling used for I Am names and the value is on a new line.
-  /// Returns an empty SizedBox if value is empty to avoid wasted space.
+  /// Always shows the heading, but only adds spacing when there's data.
   Widget _buildHeadingValue(BuildContext context, String headingKey, String value) {
-    if (value.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
+    final hasValue = value.isNotEmpty;
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
+      padding: EdgeInsets.only(top: hasValue ? 4 : 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -63,7 +71,8 @@ class _ListTabState extends State<ListTab> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          Text(value, style: theme.textTheme.bodyMedium),
+          if (hasValue)
+            Text(value, style: theme.textTheme.bodyMedium),
         ],
       ),
     );
@@ -164,9 +173,9 @@ class _ListTabState extends State<ListTab> {
       children: [
         // Filter field (only shown on this tab, but text persists via parent controller)
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
           child: SizedBox(
-            height: 36,
+            height: 40,
             child: TextField(
               controller: widget.filterController,
               style: theme.textTheme.bodyMedium,
@@ -175,26 +184,73 @@ class _ListTabState extends State<ListTab> {
                 hintStyle: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.outline,
                 ),
-                prefixIcon: Icon(Icons.search, size: 18, color: theme.colorScheme.outline),
-                prefixIconConstraints: const BoxConstraints(minWidth: 36),
+                prefixIcon: const Icon(Icons.search, size: 20),
                 suffixIcon: _filterText.isNotEmpty
                     ? GestureDetector(
                         onTap: () => widget.filterController?.clear(),
-                        child: Icon(Icons.clear, size: 18, color: theme.colorScheme.outline),
+                        child: const Icon(Icons.clear, size: 20),
                       )
                     : null,
-                suffixIconConstraints: const BoxConstraints(minWidth: 36),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               ),
+            ),
+          ),
+        ),
+        // Category filter chips
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: SizedBox(
+            height: 40,
+            child: Row(
+              children: InventoryCategory.values.map((category) {
+                final isSelected = _selectedCategories.contains(category);
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          if (isSelected) {
+                            _selectedCategories.remove(category);
+                          } else {
+                            _selectedCategories.add(category);
+                          }
+                        });
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.outline.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            _getCategoryIcon(category),
+                            size: 20,
+                            color: isSelected
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
         ),
         // List content
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: ValueListenableBuilder(
               valueListenable: widget.box.listenable(),
               builder: (context, Box<InventoryEntry> box, _) {
@@ -209,7 +265,12 @@ class _ListTabState extends State<ListTab> {
                     // Get entries sorted by order (highest first)
                     var entries = _inventoryService.getAllEntries();
                     
-                    // Apply filter if 2+ characters entered (wildcard on resentment field)
+                    // Apply category filter
+                    entries = entries.where((e) => 
+                      _selectedCategories.contains(e.effectiveCategory)
+                    ).toList();
+                    
+                    // Apply text filter if 2+ characters entered (wildcard on resentment field)
                     if (_filterText.length >= 2) {
                       final filterLower = _filterText.toLowerCase();
                       entries = entries.where((e) => 
@@ -257,7 +318,7 @@ class _ListTabState extends State<ListTab> {
                     key: ValueKey(e.id), // Use unique ID as key for reordering
                     margin: const EdgeInsets.symmetric(vertical: 6),
                     child: Padding(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

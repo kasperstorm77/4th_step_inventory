@@ -17,7 +17,7 @@ class EighthStepSettingsTab extends StatelessWidget {
           people.sort((a, b) => a.name.compareTo(b.name));
 
           return ListView.builder(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
+            padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).padding.bottom + 16),
             itemCount: people.length,
             itemBuilder: (context, index) {
               final person = people[index];
@@ -109,6 +109,7 @@ class PersonListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     String columnLabel;
     switch (person.column) {
       case ColumnType.yes:
@@ -122,28 +123,89 @@ class PersonListItem extends StatelessWidget {
         break;
     }
 
-    return ListTile(
-      title: Text(person.name),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('${t(context, 'amends')}: ${person.amends}'),
-          Text('${t(context, 'column')}: $columnLabel'),
-          Text('${t(context, 'amends_done')}: ${person.amendsDone ? t(context, 'eighth_step_yes') : t(context, 'eighth_step_no')}'),
-        ],
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: onEdit,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: onDelete,
-          ),
-        ],
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    t(context, 'person_name'),
+                    style: TextStyle(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(person.name, style: theme.textTheme.bodyMedium),
+                  if (person.amends != null && person.amends!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t(context, 'amends'),
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(person.amends!, style: theme.textTheme.bodyMedium),
+                        ],
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t(context, 'column'),
+                          style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(columnLabel, style: theme.textTheme.bodyMedium),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t(context, 'amends_done'),
+                          style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          person.amendsDone ? t(context, 'eighth_step_yes') : t(context, 'eighth_step_no'),
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: onEdit,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: onDelete,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -184,7 +246,12 @@ class _PersonEditDialogState extends State<PersonEditDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.person == null ? t(context, 'add_person') : t(context, 'edit_person')),
+      title: Text(
+        widget.person == null ? t(context, 'add_person') : t(context, 'edit_person'),
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.bold,
+        ),
+      ),
       content: SizedBox(
         width: double.maxFinite,
         child: Form(
@@ -196,7 +263,10 @@ class _PersonEditDialogState extends State<PersonEditDialog> {
               children: [
                 TextFormField(
                   initialValue: _name,
-                  decoration: InputDecoration(labelText: t(context, 'person_name')),
+                  decoration: InputDecoration(
+                    labelText: t(context, 'person_name'),
+                    border: const OutlineInputBorder(),
+                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return t(context, 'person_name_required');
@@ -211,6 +281,7 @@ class _PersonEditDialogState extends State<PersonEditDialog> {
                 decoration: InputDecoration(
                   labelText: t(context, 'amends_needed'),
                   hintText: t(context, 'optional'),
+                  border: const OutlineInputBorder(),
                 ),
                 onSaved: (value) => _amends = value,
                 maxLines: 3,
@@ -218,7 +289,10 @@ class _PersonEditDialogState extends State<PersonEditDialog> {
               const SizedBox(height: 16),
               DropdownButtonFormField<ColumnType>(
                 initialValue: _column,
-                decoration: InputDecoration(labelText: t(context, 'column')),
+                decoration: InputDecoration(
+                  labelText: t(context, 'column'),
+                  border: const OutlineInputBorder(),
+                ),
                 items: ColumnType.values.map((column) {
                   String label;
                   switch (column) {
@@ -246,7 +320,10 @@ class _PersonEditDialogState extends State<PersonEditDialog> {
               const SizedBox(height: 16),
               Text(
                 t(context, 'amends_done_question'),
-                style: Theme.of(context).textTheme.titleSmall,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 8),
               Row(

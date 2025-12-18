@@ -188,6 +188,155 @@ final box = Modular.get<Box<InventoryEntry>>();
 
 **Routing**: Single route (`/`) points to `AppHomePage` which renders `AppRouter`. `AppRouter` switches between the 6 app home pages based on `AppSwitcherService.getSelectedAppId()`.
 
+## UI Styling Patterns
+
+### Text Styles
+- **Body text / Values**: Use `theme.textTheme.bodyMedium` for all content text
+- **Headings in cards**: Use `theme.colorScheme.primary` with `fontWeight: FontWeight.w600` (no text theme size - uses default)
+- **Section titles / Page headers**: Use `theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)` - NOT `titleLarge`
+- **Empty state text**: Use `theme.textTheme.bodyLarge`
+
+### Card Content Styling
+All cards displaying data should follow this pattern for headings and values:
+
+```dart
+Widget _buildHeadingValue(BuildContext context, String headingKey, String value, {Color? headingColor}) {
+  final theme = Theme.of(context);
+  return Padding(
+    padding: EdgeInsets.only(top: value.isNotEmpty ? 4 : 0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          t(context, headingKey),
+          style: TextStyle(
+            color: headingColor ?? theme.colorScheme.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (value.isNotEmpty)
+          Text(value, style: theme.textTheme.bodyMedium),
+      ],
+    ),
+  );
+}
+```
+
+**Heading colors:**
+- Default/primary headings: `theme.colorScheme.primary` (blue)
+- Error/warning headings: `theme.colorScheme.error` (red) - e.g., barriers in agnosticism
+- Always use `fontWeight: FontWeight.w600` for headings
+- Always use `theme.textTheme.bodyMedium` for values
+
+### Card Layout
+- Use `Card` with `margin: const EdgeInsets.symmetric(vertical: 6)`
+- Use `Padding(padding: const EdgeInsets.all(12))` inside cards (not `ListTile`)
+- Apply horizontal padding on the parent `ListView`: `padding: const EdgeInsets.symmetric(horizontal: 12)`
+
+### TextField Styling
+For filter/search fields and inline text fields:
+```dart
+TextField(
+  controller: controller,
+  style: theme.textTheme.bodyMedium,  // Match card content text size
+  decoration: InputDecoration(
+    hintText: t(context, 'hint_key'),
+    hintStyle: theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.outline,
+    ),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+    // For compact fields:
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+  ),
+)
+```
+
+For form fields (full-size):
+```dart
+TextField(
+  controller: controller,
+  decoration: InputDecoration(
+    labelText: t(context, 'label_key'),
+    border: const OutlineInputBorder(),
+  ),
+)
+```
+
+### Filter/Toggle Chips
+For category or toggle filters (icon-only boxes in a row):
+```dart
+SizedBox(
+  height: 40,
+  child: Row(
+    children: items.map((item) {
+      final isSelected = selectedItems.contains(item);
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: GestureDetector(
+            onTap: () => toggleSelection(item),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.outline.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Center(
+                child: Icon(
+                  getIcon(item),
+                  size: 20,
+                  color: isSelected
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }).toList(),
+  ),
+)
+```
+
+### Button Styling
+- Full-width buttons: Wrap in `SizedBox(width: double.infinity, child: ...)`
+- Primary actions: `ElevatedButton.icon`
+- Secondary actions: `OutlinedButton.icon`
+- Cancel/destructive: `TextButton` or `TextButton.icon`
+
+### AlertDialog Styling
+Dialog titles should use the same style as section titles:
+```dart
+AlertDialog(
+  title: Text(
+    t(context, 'dialog_title'),
+    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.bold,
+    ),
+  ),
+  content: ...,
+)
+```
+
+### Spacing Constants
+- Page padding: `EdgeInsets.all(12)` or `EdgeInsets.fromLTRB(12, 8, 12, 0)`
+- Between elements: 6-8px vertical
+- Card internal padding: `EdgeInsets.all(12)`
+- Card margin: `EdgeInsets.symmetric(vertical: 6)`
+- Between form fields: `SizedBox(height: 16)`
+
+### Icon Sizes
+- In cards/chips: 16-20px
+- In buttons: default (24px)
+- In filter fields: 20px
+
 ## Common Patterns
 
 ### Hive Box Opening (main.dart)

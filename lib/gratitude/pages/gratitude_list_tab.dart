@@ -19,7 +19,12 @@ class GratitudeListTab extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(t(context, 'gratitude_delete_title')),
+        title: Text(
+          t(context, 'gratitude_delete_title'),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Text(t(context, 'gratitude_delete_confirm')),
         actions: [
           TextButton(
@@ -75,7 +80,7 @@ class GratitudeListTab extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   t(context, 'gratitude_no_entries_hint'),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                   textAlign: TextAlign.center,
@@ -91,7 +96,7 @@ class GratitudeListTab extends StatelessWidget {
           ..sort((a, b) => b.compareTo(a));
 
         return ListView.builder(
-          padding: EdgeInsets.fromLTRB(8, 8, 8, MediaQuery.of(context).padding.bottom + 32),
+          padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).padding.bottom + 32),
           itemCount: sortedDates.length,
           itemBuilder: (context, index) {
             final date = sortedDates[index];
@@ -110,7 +115,7 @@ class GratitudeListTab extends StatelessWidget {
     final isToday = dateOnly.isAtSameMomentAs(today);
     
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(

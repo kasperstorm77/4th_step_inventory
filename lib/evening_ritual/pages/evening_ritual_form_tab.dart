@@ -257,6 +257,7 @@ class _EveningRitualFormTabState extends State<EveningRitualFormTab> {
                                     border: const OutlineInputBorder(),
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                                   ),
+                                  style: Theme.of(context).textTheme.bodyMedium,
                                   isExpanded: true,
                                   selectedItemBuilder: (BuildContext context) {
                                     return ReflectionType.values.map((type) {
@@ -265,6 +266,7 @@ class _EveningRitualFormTabState extends State<EveningRitualFormTab> {
                                         constraints: const BoxConstraints(maxWidth: 280),
                                         child: Text(
                                           t(context, type.labelKey()),
+                                          style: Theme.of(context).textTheme.bodyMedium,
                                           overflow: TextOverflow.ellipsis,
                                           maxLines: 1,
                                         ),
@@ -276,6 +278,7 @@ class _EveningRitualFormTabState extends State<EveningRitualFormTab> {
                                       value: type,
                                       child: Text(
                                         t(context, type.labelKey()),
+                                        style: Theme.of(context).textTheme.bodyMedium,
                                         overflow: TextOverflow.visible,
                                       ),
                                     );
@@ -340,18 +343,7 @@ class _EveningRitualFormTabState extends State<EveningRitualFormTab> {
 
                     const SizedBox(height: 16),
 
-                    if (regularEntries.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Text(
-                          t(context, 'no_reflections_hint'),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                              ),
-                          textAlign: TextAlign.center,
-                        ),
-                      )
-                    else
+                    if (regularEntries.isNotEmpty)
                       ...regularEntries.map((entry) {
                         final isEditingThis = _editingEntry?.internalId == entry.internalId;
                         
@@ -366,9 +358,9 @@ class _EveningRitualFormTabState extends State<EveningRitualFormTab> {
                                 children: [
                                   Text(
                                     t(context, entry.type.labelKey()),
-                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
+                                    style: TextStyle(
                                       color: Theme.of(context).colorScheme.primary,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   const SizedBox(height: 12),
@@ -431,16 +423,16 @@ class _EveningRitualFormTabState extends State<EveningRitualFormTab> {
                                     children: [
                                       Text(
                                         t(context, entry.type.labelKey()),
-                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        style: TextStyle(
                                           color: Theme.of(context).colorScheme.primary,
-                                          fontWeight: FontWeight.w500,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       if (entry.detail != null && entry.detail!.isNotEmpty) ...[
                                         const SizedBox(height: 4),
                                         Text(
                                           entry.detail!,
-                                          style: Theme.of(context).textTheme.bodyLarge,
+                                          style: Theme.of(context).textTheme.bodyMedium,
                                         ),
                                       ],
                                     ],
@@ -484,9 +476,10 @@ class _EveningRitualFormTabState extends State<EveningRitualFormTab> {
           children: [
             Text(
               t(context, 'thinking_focus_question'),
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -556,7 +549,12 @@ class _EveningRitualFormTabState extends State<EveningRitualFormTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(t(context, 'delete_reflection')),
+        title: Text(
+          t(context, 'delete_reflection'),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Text(t(context, 'delete_reflection_confirm')),
         actions: [
           TextButton(
