@@ -178,6 +178,18 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
   }
 
   Future<void> _playAlarm() async {
+    final item = _currentItem;
+    final vibrateEnabled = item?.vibrateEnabled ?? true;
+    final soundEnabled = item?.soundEnabled ?? true;
+
+    if (soundEnabled) {
+      // Cross-platform (iOS/Android) built-in feedback.
+      // We intentionally keep this simple and native: no custom asset bundling.
+      SystemSound.play(SystemSoundType.alert);
+    }
+
+    if (!vibrateEnabled) return;
+
     // Check if device has vibrator and use strong pattern
     final hasVibrator = await Vibration.hasVibrator();
     if (hasVibrator == true) {
@@ -209,16 +221,44 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
     }
   }
 
-  void _completeCurrentItem() {
+  Future<void> _completeCurrentItem() async {
     final item = _currentItem;
     if (item == null) return;
 
     _timer?.cancel();
 
+    var status = RitualItemStatus.completed;
+    if (item.type == RitualItemType.timer && _remainingSeconds > 0) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(t(context, 'morning_ritual_timer_early_complete_title')),
+          content: Text(t(context, 'morning_ritual_timer_early_complete_message')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(t(context, 'no')),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: Text(t(context, 'yes')),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) {
+        return;
+      }
+
+      status = RitualItemStatus.skipped;
+    }
+
     final record = RitualItemRecord(
       ritualItemId: item.id,
       ritualItemName: item.name,
-      status: RitualItemStatus.completed,
+      status: status,
       actualDurationSeconds: item.type == RitualItemType.timer
           ? (item.durationSeconds ?? 0) - _remainingSeconds
           : null,
@@ -548,7 +588,7 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
               const SizedBox(width: 16),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _completeCurrentItem,
+                  onPressed: () => _completeCurrentItem(),
                   icon: const Icon(Icons.check),
                   label: Text(t(context, 'morning_ritual_complete')),
                   style: ElevatedButton.styleFrom(

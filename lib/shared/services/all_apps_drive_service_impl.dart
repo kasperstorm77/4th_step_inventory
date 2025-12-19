@@ -10,6 +10,7 @@ import '../../morning_ritual/models/ritual_item.dart';
 import '../../morning_ritual/models/morning_ritual_entry.dart';
 import '../../gratitude/models/gratitude_entry.dart';
 import '../../agnosticism/models/barrier_power_pair.dart';
+import '../../notifications/models/app_notification.dart';
 import 'google_drive/drive_config.dart';
 import 'google_drive/mobile_drive_service.dart';
 import 'google_drive/windows_drive_service_wrapper.dart';
@@ -241,6 +242,12 @@ class AllAppsDriveService {
       final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
       final morningRitualEntries = morningRitualEntriesBox.values.map((e) => e.toJson()).toList();
 
+      // Get notifications
+      final notificationsBox = Hive.box<AppNotification>(
+        'notifications_box',
+      );
+      final notifications = notificationsBox.values.map((n) => n.toJson()).toList();
+
       // Get app settings for sync
       final appSettings = AppSettingsService.exportForSync();
 
@@ -260,6 +267,7 @@ class AllAppsDriveService {
         'agnosticism': agnosticismPairs, // Add agnosticism barrier/power pairs
         'morningRitualItems': morningRitualItems, // Add morning ritual definitions
         'morningRitualEntries': morningRitualEntries, // Add morning ritual daily entries
+        'notifications': notifications, // Notifications
         'appSettings': appSettings, // Add app settings (morning ritual auto-load, etc.)
       };
 
@@ -382,6 +390,12 @@ class AllAppsDriveService {
       final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
       final morningRitualEntries = morningRitualEntriesBox.values.map((e) => e.toJson()).toList();
 
+      // Get notifications
+      final notificationsBox = Hive.box<AppNotification>(
+        'notifications_box',
+      );
+      final notifications = notificationsBox.values.map((n) => n.toJson()).toList();
+
       // Get app settings for sync
       final appSettings = AppSettingsService.exportForSync();
 
@@ -403,6 +417,7 @@ class AllAppsDriveService {
         'agnosticism': agnosticismPairs, // Add agnosticism barrier/power pairs
         'morningRitualItems': morningRitualItems, // Add morning ritual definitions
         'morningRitualEntries': morningRitualEntries, // Add morning ritual daily entries
+        'notifications': notifications, // Notifications
         'appSettings': appSettings, // Add app settings (morning ritual auto-load, etc.)
       };
 

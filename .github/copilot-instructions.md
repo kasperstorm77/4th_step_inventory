@@ -32,8 +32,9 @@ Examples:
 - Evening Ritual: `reflections_box` (Box<ReflectionEntry>)
 - Gratitude: `gratitude_box` (Box<GratitudeEntry>)
 - Agnosticism: `agnosticism_pairs` (Box<BarrierPowerPair>)
+- Notifications: `notifications_box` (Box<AppNotification>)
 
-**Hive Type IDs** (NEVER reuse - 0-14 assigned):
+**Hive Type IDs** (NEVER reuse - 0-16 assigned):
 | typeId | Model | App |
 |--------|-------|-----|
 | 0 | InventoryEntry | 4th Step |
@@ -51,6 +52,8 @@ Examples:
 | 12 | RitualItemRecord | Morning Ritual |
 | 13 | MorningRitualEntry | Morning Ritual |
 | 14 | InventoryCategory | 4th Step |
+| 15 | NotificationScheduleType | Notifications |
+| 16 | AppNotification | Notifications |
 
 ## Critical Developer Workflows
 

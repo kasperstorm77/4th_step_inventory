@@ -28,6 +28,8 @@ import '../../gratitude/models/gratitude_entry.dart';
 import '../../agnosticism/models/barrier_power_pair.dart';
 import '../../morning_ritual/models/ritual_item.dart';
 import '../../morning_ritual/models/morning_ritual_entry.dart';
+import '../../notifications/models/app_notification.dart';
+import '../../notifications/services/notifications_service.dart';
 import '../../fourth_step/services/inventory_service.dart';
 import '../localizations.dart';
 import '../services/all_apps_drive_service_impl.dart';
@@ -570,6 +572,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
                                (data.containsKey('agnosticismPapers') ? (data['agnosticismPapers'] as List).length : 0);
       final ritualItemsCount = data.containsKey('morningRitualItems') ? (data['morningRitualItems'] as List).length : 0;
       final ritualEntriesCount = data.containsKey('morningRitualEntries') ? (data['morningRitualEntries'] as List).length : 0;
+      final notificationsCount = data.containsKey('notifications') ? (data['notifications'] as List).length : 0;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -582,7 +585,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
                 .replaceFirst('%gratitude%', gratitudeCount.toString())
                 .replaceFirst('%agnosticism%', agnosticismCount.toString())
                 .replaceFirst('%ritualItems%', ritualItemsCount.toString())
-                .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())),
+                .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())
+                .replaceFirst('%notifications%', notificationsCount.toString())),
             duration: const Duration(seconds: 4),
           ),
         );
@@ -638,6 +642,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
     final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
     final morningRitualItemsBox = Hive.box<RitualItem>('morning_ritual_items');
     final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
+    final notificationsBox = Hive.box<AppNotification>(NotificationsService.notificationsBoxName);
 
     final now = DateTime.now().toUtc();
     
@@ -664,6 +669,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
       'agnosticism': agnosticismBox.values.map((a) => a.toJson()).toList(),
       'morningRitualItems': morningRitualItemsBox.values.map((i) => i.toJson()).toList(),
       'morningRitualEntries': morningRitualEntriesBox.values.map((e) => e.toJson()).toList(),
+      'notifications': notificationsBox.values.map((n) => n.toJson()).toList(),
     };
   }
 
@@ -721,6 +727,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
                                (data.containsKey('agnosticismPapers') ? (data['agnosticismPapers'] as List).length : 0);
       final ritualItemsCount = data.containsKey('morningRitualItems') ? (data['morningRitualItems'] as List).length : 0;
       final ritualEntriesCount = data.containsKey('morningRitualEntries') ? (data['morningRitualEntries'] as List).length : 0;
+      final notificationsCount = data.containsKey('notifications') ? (data['notifications'] as List).length : 0;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -733,7 +740,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
                 .replaceFirst('%gratitude%', gratitudeCount.toString())
                 .replaceFirst('%agnosticism%', agnosticismCount.toString())
                 .replaceFirst('%ritualItems%', ritualItemsCount.toString())
-                .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())),
+                .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())
+                .replaceFirst('%notifications%', notificationsCount.toString())),
             duration: const Duration(seconds: 4),
           ),
         );

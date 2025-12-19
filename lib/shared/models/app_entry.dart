@@ -50,6 +50,7 @@ class AvailableApps {
   static const String morningRitual = 'morning_ritual';
   static const String gratitude = 'gratitude';
   static const String agnosticism = 'agnosticism';
+  static const String notifications = 'notifications';
 
   static List<AppEntry> getAll(BuildContext context) {
     return [
@@ -87,6 +88,12 @@ class AvailableApps {
         id: gratitude,
         name: t(context, 'app_gratitude_name'),
         description: t(context, 'app_gratitude_desc'),
+        isActive: true,
+      ),
+      AppEntry(
+        id: notifications,
+        name: t(context, 'app_notifications_name'),
+        description: t(context, 'app_notifications_desc'),
         isActive: true,
       ),
     ];

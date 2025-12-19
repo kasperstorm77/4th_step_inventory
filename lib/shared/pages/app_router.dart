@@ -7,6 +7,7 @@ import '../../evening_ritual/pages/evening_ritual_home.dart';
 import '../../morning_ritual/pages/morning_ritual_home.dart';
 import '../../gratitude/pages/gratitude_home.dart';
 import '../../agnosticism/pages/agnosticism_home.dart';
+import '../../notifications/pages/notifications_home.dart';
 
 /// Global app router that determines which app to display based on AppSwitcherService
 class AppRouter extends StatefulWidget {
@@ -63,6 +64,12 @@ class _AppRouterState extends State<AppRouter> {
 
       case AvailableApps.agnosticism:
         return AgnosticismHome(
+          key: ValueKey(currentAppId),
+          onAppSwitched: _onAppSwitched,
+        );
+
+      case AvailableApps.notifications:
+        return NotificationsHome(
           key: ValueKey(currentAppId),
           onAppSwitched: _onAppSwitched,
         );

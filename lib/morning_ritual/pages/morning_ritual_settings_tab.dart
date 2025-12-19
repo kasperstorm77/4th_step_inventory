@@ -130,6 +130,10 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
     );
     RitualItemType selectedType = item?.type ?? RitualItemType.timer;
 
+    var vibrateEnabled = item?.vibrateEnabled ?? true;
+    var soundEnabled = item?.soundEnabled ?? true;
+    String? soundId = item?.soundId;
+
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -218,6 +222,70 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
                         ),
                       ],
                     ),
+
+                    const SizedBox(height: 16),
+                    Text(
+                      t(context, 'morning_ritual_alarm_settings'),
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(t(context, 'morning_ritual_alarm_vibrate')),
+                      value: vibrateEnabled,
+                      onChanged: (v) {
+                        setDialogState(() {
+                          vibrateEnabled = v;
+                        });
+                      },
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(t(context, 'morning_ritual_alarm_sound')),
+                      value: soundEnabled,
+                      onChanged: (v) {
+                        setDialogState(() {
+                          soundEnabled = v;
+                          if (!soundEnabled) {
+                            soundId = null;
+                          }
+                        });
+                      },
+                    ),
+                    if (soundEnabled) ...[
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        key: ValueKey<String?>(soundId),
+                        initialValue: soundId,
+                        decoration: InputDecoration(
+                          labelText: t(context, 'morning_ritual_alarm_sound_choice'),
+                          border: const OutlineInputBorder(),
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: null,
+                            child: Text(t(context, 'morning_ritual_alarm_sound_default')),
+                          ),
+                          DropdownMenuItem(
+                            value: 'system_default_notification',
+                            child: Text(t(context, 'morning_ritual_alarm_sound_notification')),
+                          ),
+                          DropdownMenuItem(
+                            value: 'system_default_alarm',
+                            child: Text(t(context, 'morning_ritual_alarm_sound_alarm')),
+                          ),
+                          DropdownMenuItem(
+                            value: 'system_default_ringtone',
+                            child: Text(t(context, 'morning_ritual_alarm_sound_ringtone')),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setDialogState(() {
+                            soundId = value;
+                          });
+                        },
+                      ),
+                    ],
                   ],
                   // Prayer text field - show/hide based on type
                   if (selectedType == RitualItemType.prayer)
@@ -258,6 +326,9 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
                     type: selectedType,
                     durationSeconds: selectedType == RitualItemType.timer ? totalSeconds : null,
                     prayerText: selectedType == RitualItemType.prayer ? prayerTextController.text : null,
+                    vibrateEnabled: selectedType == RitualItemType.timer ? vibrateEnabled : true,
+                    soundEnabled: selectedType == RitualItemType.timer ? soundEnabled : true,
+                    soundId: selectedType == RitualItemType.timer ? soundId : null,
                   );
                   await MorningRitualService.updateRitualItem(updated);
                 } else {
@@ -266,6 +337,9 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
                     type: selectedType,
                     durationSeconds: selectedType == RitualItemType.timer ? totalSeconds : null,
                     prayerText: selectedType == RitualItemType.prayer ? prayerTextController.text : null,
+                    vibrateEnabled: selectedType == RitualItemType.timer ? vibrateEnabled : true,
+                    soundEnabled: selectedType == RitualItemType.timer ? soundEnabled : true,
+                    soundId: selectedType == RitualItemType.timer ? soundId : null,
                   );
                   await MorningRitualService.addRitualItem(newItem);
                 }

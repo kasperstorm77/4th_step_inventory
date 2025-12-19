@@ -14,6 +14,8 @@ import '../../gratitude/models/gratitude_entry.dart';
 import '../../agnosticism/models/barrier_power_pair.dart';
 import '../../morning_ritual/models/ritual_item.dart';
 import '../../morning_ritual/models/morning_ritual_entry.dart';
+import '../../notifications/models/app_notification.dart';
+import '../../notifications/services/notifications_service.dart';
 import '../localizations.dart';
 import '../utils/platform_helper.dart';
 
@@ -748,6 +750,19 @@ class _DataManagementTabState extends State<DataManagementTab> {
           if (kDebugMode) print('Drive restore: Imported ${morningRitualEntriesBox.length} morning ritual entries');
         }
 
+        // Import notifications if present
+        if (decoded.containsKey('notifications')) {
+          final notificationsBox = Hive.box<AppNotification>(NotificationsService.notificationsBoxName);
+          final notificationsList = decoded['notifications'] as List;
+          await notificationsBox.clear();
+          for (final nJson in notificationsList) {
+            final n = AppNotification.fromJson(nJson as Map<String, dynamic>);
+            await notificationsBox.put(n.id, n);
+          }
+          await NotificationsService.rescheduleAll();
+          if (kDebugMode) print('Drive restore: Imported ${notificationsBox.length} notifications');
+        }
+
         // Import app settings if present (v8.0+)
         if (decoded.containsKey('appSettings')) {
           final appSettingsData = decoded['appSettings'] as Map<String, dynamic>;
@@ -776,6 +791,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
                                  (decoded.containsKey('agnosticismPapers') ? (decoded['agnosticismPapers'] as List).length : 0);
         final ritualItemsCount = decoded.containsKey('morningRitualItems') ? (decoded['morningRitualItems'] as List).length : 0;
         final ritualEntriesCount = decoded.containsKey('morningRitualEntries') ? (decoded['morningRitualEntries'] as List).length : 0;
+        final notificationsCount = decoded.containsKey('notifications') ? (decoded['notifications'] as List).length : 0;
         
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -788,7 +804,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
                 .replaceFirst('%gratitude%', gratitudeCount.toString())
                 .replaceFirst('%agnosticism%', agnosticismCount.toString())
                 .replaceFirst('%ritualItems%', ritualItemsCount.toString())
-                .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())),
+                .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())
+                .replaceFirst('%notifications%', notificationsCount.toString())),
             duration: const Duration(seconds: 4),
           ),
         );
@@ -850,6 +867,9 @@ class _DataManagementTabState extends State<DataManagementTab> {
       final morningRitualEntriesBox = Hive.box<MorningRitualEntry>('morning_ritual_entries');
       final morningRitualEntries = morningRitualEntriesBox.values.map((e) => e.toJson()).toList();
 
+      final notificationsBox = Hive.box<AppNotification>(NotificationsService.notificationsBoxName);
+      final notifications = notificationsBox.values.map((n) => n.toJson()).toList();
+
       // Get app settings for export
       final appSettings = AppSettingsService.exportForSync();
 
@@ -866,6 +886,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
         'agnosticism': agnosticismPairs, // Agnosticism barrier/power pairs
         'morningRitualItems': morningRitualItems, // Morning ritual definitions
         'morningRitualEntries': morningRitualEntries, // Morning ritual daily entries
+        'notifications': notifications, // Notifications app
         'appSettings': appSettings, // App settings (morning ritual auto-load, etc.)
       };
 
@@ -1063,6 +1084,18 @@ class _DataManagementTabState extends State<DataManagementTab> {
         }
       }
 
+      // Import notifications if present
+      if (data.containsKey('notifications')) {
+        final notificationsBox = Hive.box<AppNotification>(NotificationsService.notificationsBoxName);
+        final notificationsList = data['notifications'] as List;
+        await notificationsBox.clear();
+        for (final nJson in notificationsList) {
+          final n = AppNotification.fromJson(nJson as Map<String, dynamic>);
+          await notificationsBox.put(n.id, n);
+        }
+        await NotificationsService.rescheduleAll();
+      }
+
       // Import app settings if present (v8.0+)
       if (data.containsKey('appSettings')) {
         final appSettingsData = data['appSettings'] as Map<String, dynamic>;
@@ -1080,6 +1113,7 @@ class _DataManagementTabState extends State<DataManagementTab> {
                                (data.containsKey('agnosticismPapers') ? (data['agnosticismPapers'] as List).length : 0);
       final ritualItemsCount = data.containsKey('morningRitualItems') ? (data['morningRitualItems'] as List).length : 0;
       final ritualEntriesCount = data.containsKey('morningRitualEntries') ? (data['morningRitualEntries'] as List).length : 0;
+      final notificationsCount = data.containsKey('notifications') ? (data['notifications'] as List).length : 0;
 
       if (!mounted) return;
       messenger.showSnackBar(
@@ -1092,7 +1126,8 @@ class _DataManagementTabState extends State<DataManagementTab> {
               .replaceFirst('%gratitude%', gratitudeCount.toString())
               .replaceFirst('%agnosticism%', agnosticismCount.toString())
               .replaceFirst('%ritualItems%', ritualItemsCount.toString())
-              .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())),
+              .replaceFirst('%ritualEntries%', ritualEntriesCount.toString())
+              .replaceFirst('%notifications%', notificationsCount.toString())),
           duration: const Duration(seconds: 4),
         ),
       );

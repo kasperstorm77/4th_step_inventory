@@ -39,6 +39,18 @@ class RitualItem extends HiveObject {
   @HiveField(7)
   DateTime lastModified;
 
+  @HiveField(8)
+  bool vibrateEnabled;
+
+  @HiveField(9)
+  bool soundEnabled;
+
+  /// Optional sound identifier.
+  /// - Android: Settings.System.* URI string
+  /// - iOS: bundled sound filename (might be null for default)
+  @HiveField(10)
+  String? soundId;
+
   RitualItem({
     String? id,
     required this.name,
@@ -47,6 +59,9 @@ class RitualItem extends HiveObject {
     this.prayerText,
     this.sortOrder = 0,
     this.isActive = true,
+    this.vibrateEnabled = true,
+    this.soundEnabled = true,
+    this.soundId,
     DateTime? lastModified,
   })  : id = id ?? const Uuid().v4(),
         lastModified = lastModified ?? DateTime.now();
@@ -74,6 +89,9 @@ class RitualItem extends HiveObject {
     String? prayerText,
     int? sortOrder,
     bool? isActive,
+    bool? vibrateEnabled,
+    bool? soundEnabled,
+    String? soundId,
   }) {
     return RitualItem(
       id: id,
@@ -83,6 +101,9 @@ class RitualItem extends HiveObject {
       prayerText: prayerText ?? this.prayerText,
       sortOrder: sortOrder ?? this.sortOrder,
       isActive: isActive ?? this.isActive,
+      vibrateEnabled: vibrateEnabled ?? this.vibrateEnabled,
+      soundEnabled: soundEnabled ?? this.soundEnabled,
+      soundId: soundId ?? this.soundId,
       lastModified: DateTime.now(),
     );
   }
@@ -95,6 +116,9 @@ class RitualItem extends HiveObject {
         'prayerText': prayerText,
         'sortOrder': sortOrder,
         'isActive': isActive,
+      'vibrateEnabled': vibrateEnabled,
+      'soundEnabled': soundEnabled,
+      'soundId': soundId,
         'lastModified': lastModified.toIso8601String(),
       };
 
@@ -107,6 +131,9 @@ class RitualItem extends HiveObject {
       prayerText: json['prayerText'] as String?,
       sortOrder: json['sortOrder'] as int? ?? 0,
       isActive: json['isActive'] as bool? ?? true,
+      vibrateEnabled: json['vibrateEnabled'] as bool? ?? true,
+      soundEnabled: json['soundEnabled'] as bool? ?? true,
+      soundId: json['soundId'] as String?,
       lastModified: json['lastModified'] != null
           ? DateTime.parse(json['lastModified'] as String)
           : DateTime.now(),

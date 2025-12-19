@@ -22,6 +22,8 @@ import 'fourth_step/services/i_am_service.dart';
 import 'shared/utils/platform_helper.dart';
 import 'shared/services/app_settings_service.dart';
 import 'shared/services/app_switcher_service.dart';
+import 'notifications/models/app_notification.dart';
+import 'notifications/services/notifications_service.dart';
 
 // Import modular app
 import 'app/app_module.dart';
@@ -81,6 +83,8 @@ void main() async {
   Hive.registerAdapter(RitualItemStatusAdapter());
   Hive.registerAdapter(RitualItemRecordAdapter());
   Hive.registerAdapter(MorningRitualEntryAdapter());
+  Hive.registerAdapter(NotificationScheduleTypeAdapter());
+  Hive.registerAdapter(AppNotificationAdapter());
 
   try {
     await timed("Hive.openBox('entries')", () => Hive.openBox<InventoryEntry>('entries'));
@@ -173,6 +177,34 @@ void main() async {
 
   // Open a separate settings box for sync preferences
   await timed("Hive.openBox('settings')", () => Hive.openBox('settings'));
+
+  // Open notifications box
+  try {
+    await timed(
+      "Hive.openBox('notifications_box')",
+      () => Hive.openBox<AppNotification>(NotificationsService.notificationsBoxName),
+    );
+  } catch (e) {
+    if (kDebugMode) print('Error opening notifications_box: $e');
+    await timed(
+      "Hive.deleteBoxFromDisk('notifications_box')",
+      () => Hive.deleteBoxFromDisk(NotificationsService.notificationsBoxName),
+    );
+    await timed(
+      "Hive.openBox('notifications_box') [recreate]",
+      () => Hive.openBox<AppNotification>(NotificationsService.notificationsBoxName),
+    );
+    if (kDebugMode) print('Cleared corrupted notifications_box and created new one');
+  }
+
+  // Initialize local notifications for mobile platforms and reschedule.
+  try {
+    await timed('NotificationsService.initialize', () => NotificationsService.initialize());
+    await timed('NotificationsService.requestPermissionsIfNeeded', () => NotificationsService.requestPermissionsIfNeeded());
+    await timed('NotificationsService.rescheduleAll', () => NotificationsService.rescheduleAll());
+  } catch (e) {
+    if (kDebugMode) print('startup: Notifications init failed: $e');
+  }
 
   // Migration: Assign order values to existing entries (runs once, also called after restore)
   await timed('InventoryService.migrateOrderValues', () => InventoryService.migrateOrderValues());

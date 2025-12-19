@@ -26,6 +26,8 @@ import '../gratitude/models/gratitude_entry.dart';
 import '../agnosticism/models/barrier_power_pair.dart';
 import '../morning_ritual/models/ritual_item.dart';
 import '../morning_ritual/models/morning_ritual_entry.dart';
+import '../notifications/models/app_notification.dart';
+import '../notifications/services/notifications_service.dart';
 
 class AppWidget extends StatefulWidget {
   const AppWidget({super.key});
@@ -314,6 +316,18 @@ class _AppWidgetState extends State<AppWidget> with WidgetsBindingObserver {
         final entry = MorningRitualEntry.fromJson(entryJson as Map<String, dynamic>);
         await morningRitualEntriesBox.put(entry.id, entry);
       }
+    }
+
+    // Import notifications
+    if (decoded.containsKey('notifications')) {
+      final notificationsBox = Hive.box<AppNotification>(NotificationsService.notificationsBoxName);
+      final notificationsList = decoded['notifications'] as List;
+      await notificationsBox.clear();
+      for (final nJson in notificationsList) {
+        final n = AppNotification.fromJson(nJson as Map<String, dynamic>);
+        await notificationsBox.put(n.id, n);
+      }
+      await NotificationsService.rescheduleAll();
     }
 
     // Import app settings
