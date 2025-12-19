@@ -175,7 +175,7 @@ class NotificationsService {
             print('NotificationsService.schedule: canScheduleExactNotifications = $canSchedule');
           }
           if (!canSchedule) {
-            print('WARNING: Cannot schedule exact notifications! User must grant "Alarms & reminders" permission.');
+            debugPrint('WARNING: Cannot schedule exact notifications! User must grant "Alarms & reminders" permission.');
             await android.requestExactAlarmsPermission();
             return;
           }
@@ -274,38 +274,5 @@ class NotificationsService {
 
     await cancel(notification);
     await box.delete(notification.id);
-  }
-
-  /// Test method to send an immediate notification (for debugging)
-  static Future<void> sendTestNotification() async {
-    await initialize();
-    
-    if (kDebugMode) {
-      print('NotificationsService.sendTestNotification: sending immediate notification');
-    }
-    
-    await _plugin.show(
-      999999,
-      'Test Notification',
-      'This is a test notification sent at ${DateTime.now()}',
-      _details(),
-    );
-    
-    if (kDebugMode) {
-      print('NotificationsService.sendTestNotification: notification sent');
-    }
-  }
-
-  /// Check pending notifications (for debugging)
-  static Future<void> checkPendingNotifications() async {
-    await initialize();
-    
-    final pending = await _plugin.pendingNotificationRequests();
-    if (kDebugMode) {
-      print('NotificationsService: ${pending.length} pending notifications:');
-      for (final n in pending) {
-        print('  - ID: ${n.id}, Title: ${n.title}, Body: ${n.body}');
-      }
-    }
   }
 }

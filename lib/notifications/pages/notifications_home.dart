@@ -218,16 +218,6 @@ class _NotificationsHomeState extends State<NotificationsHome> {
     await NotificationsService.delete(notification);
   }
 
-  String _formatTime(BuildContext context, int timeMinutes) {
-    final tod = TimeOfDay(hour: timeMinutes ~/ 60, minute: timeMinutes % 60);
-    // Use 24-hour format if device uses it, otherwise use locale default
-    final use24Hour = MediaQuery.of(context).alwaysUse24HourFormat;
-    return MaterialLocalizations.of(context).formatTimeOfDay(
-      tod,
-      alwaysUse24HourFormat: use24Hour,
-    );
-  }
-
   String _weekdayLabel(BuildContext context, int weekday) {
     switch (weekday) {
       case DateTime.monday:
@@ -247,16 +237,6 @@ class _NotificationsHomeState extends State<NotificationsHome> {
       default:
         return weekday.toString();
     }
-  }
-
-  String _scheduleSummary(BuildContext context, AppNotification n) {
-    final time = _formatTime(context, n.timeMinutes);
-    if (n.scheduleType == NotificationScheduleType.daily) {
-      return '${t(context, 'notifications_schedule_daily')} · $time';
-    }
-
-    final days = (n.weekdays.toList()..sort()).map((d) => _weekdayLabel(context, d)).join(', ');
-    return '${t(context, 'notifications_schedule_weekly')} · $days · $time';
   }
 
   Future<_NotificationFormResult?> _openNotificationEditor({
@@ -279,12 +259,25 @@ class _NotificationsHomeState extends State<NotificationsHome> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(t(context, 'notifications_title')),
+        title: Text(t(context, 'notifications_title'), style: const TextStyle(fontSize: 18)),
         actions: [
           IconButton(
+            icon: const Icon(Icons.apps),
             tooltip: t(context, 'switch_app'),
-            icon: const Icon(Icons.grid_view),
             onPressed: _showAppSwitcher,
+            visualDensity: VisualDensity.compact,
+          ),
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: t(context, 'help'),
+            onPressed: _showHelp,
+            visualDensity: VisualDensity.compact,
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: t(context, 'data_management'),
+            onPressed: _openDataManagement,
+            visualDensity: VisualDensity.compact,
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.language),
@@ -299,25 +292,7 @@ class _NotificationsHomeState extends State<NotificationsHome> {
                 child: Text(t(context, 'lang_danish')),
               ),
             ],
-          ),
-          IconButton(
-            tooltip: t(context, 'help'),
-            icon: const Icon(Icons.help_outline),
-            onPressed: _showHelp,
-          ),
-          // Debug button - only in debug mode
-          IconButton(
-            tooltip: 'Test Notification (Debug)',
-            icon: const Icon(Icons.bug_report),
-            onPressed: () async {
-              await NotificationsService.checkPendingNotifications();
-              await NotificationsService.sendTestNotification();
-            },
-          ),
-          IconButton(
-            tooltip: t(context, 'data_management'),
-            icon: const Icon(Icons.storage),
-            onPressed: _openDataManagement,
+            padding: EdgeInsets.zero,
           ),
         ],
       ),
@@ -340,41 +315,28 @@ class _NotificationsHomeState extends State<NotificationsHome> {
                 ..sort((a, b) => b.lastModified.compareTo(a.lastModified));
 
               if (items.isEmpty) {
-                return ListView(
-                  padding: const EdgeInsets.all(12),
-                  children: [
-                    Card(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              t(context, 'notifications_empty_title'),
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              t(context, 'notifications_empty_body'),
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: _createNotification,
-                                icon: const Icon(Icons.add),
-                                label: Text(t(context, 'notifications_add')),
-                              ),
-                            ),
-                          ],
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.notifications_none,
+                          size: 64,
+                          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                         ),
-                      ),
+                        const SizedBox(height: 16),
+                        Text(
+                          t(context, 'notifications_empty_body'),
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 );
               }
 
@@ -383,70 +345,86 @@ class _NotificationsHomeState extends State<NotificationsHome> {
                 itemCount: items.length,
                 itemBuilder: (context, index) {
                   final n = items[index];
+                  final selectedDays = (n.weekdays.toList()..sort())
+                      .map((d) => _weekdayLabel(context, d))
+                      .join(', ');
+                  final hour = n.timeMinutes ~/ 60;
+                  final minute = n.timeMinutes % 60;
+                  final timeStr = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+                  final scheduleLabel = n.scheduleType == NotificationScheduleType.daily
+                      ? t(context, 'notifications_schedule_daily')
+                      : t(context, 'notifications_schedule_weekly');
+                  
                   return Card(
                     margin: const EdgeInsets.symmetric(vertical: 6),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  n.title,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w600,
+                    child: InkWell(
+                      onTap: () => _editNotification(n),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Title
+                                  Text(
+                                    n.title,
+                                    style: TextStyle(
+                                      color: theme.colorScheme.primary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
+                                  // Body
+                                  if (n.body.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      n.body,
+                                      style: theme.textTheme.bodyMedium,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                  const SizedBox(height: 8),
+                                  // Schedule: Daily/Weekly · Weekdays · Time
+                                  Text(
+                                    n.scheduleType == NotificationScheduleType.weekly
+                                        ? '$scheduleLabel · $selectedDays · $timeStr'
+                                        : '$scheduleLabel · $timeStr',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Column(
+                              children: [
+                                Switch(
+                                  value: n.enabled,
+                                  onChanged: (value) async {
+                                    await NotificationsService.upsert(
+                                      n.copyWith(enabled: value),
+                                    );
+                                  },
                                 ),
-                              ),
-                              Switch(
-                                value: n.enabled,
-                                onChanged: (value) async {
-                                  await NotificationsService.upsert(
-                                    n.copyWith(enabled: value),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                          Text(
-                            _scheduleSummary(context, n),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (n.body.trim().isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              n.body,
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ],
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: () => _editNotification(n),
-                                icon: const Icon(Icons.edit),
-                                label: Text(t(context, 'edit')),
-                              ),
-                              const SizedBox(width: 8),
-                              TextButton.icon(
-                                onPressed: () => _deleteNotification(n),
-                                icon: const Icon(Icons.delete_outline),
-                                label: Text(
-                                  t(context, 'delete'),
-                                  style: TextStyle(
+                                IconButton(
+                                  onPressed: () => _deleteNotification(n),
+                                  icon: Icon(
+                                    Icons.delete_outline,
+                                    size: 20,
                                     color: theme.colorScheme.error,
                                   ),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -537,20 +515,44 @@ class _NotificationEditorDialogState extends State<_NotificationEditorDialog> {
     }
   }
 
-  Widget _weekdayChip(int weekday) {
+  Widget _weekdayToggle(int weekday) {
+    final theme = Theme.of(context);
     final selected = _weekdays.contains(weekday);
-    return FilterChip(
-      selected: selected,
-      label: Text(_weekdayLabel(weekday)),
-      onSelected: (v) {
+    return GestureDetector(
+      onTap: () {
         setState(() {
-          if (v) {
-            _weekdays.add(weekday);
-          } else {
+          if (selected) {
             _weekdays.remove(weekday);
+          } else {
+            _weekdays.add(weekday);
           }
         });
       },
+      child: Container(
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outline.withValues(alpha: 0.5),
+          ),
+        ),
+        child: Center(
+          child: Text(
+            _weekdayLabel(weekday),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: selected
+                  ? theme.colorScheme.onPrimary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -559,6 +561,7 @@ class _NotificationEditorDialogState extends State<_NotificationEditorDialog> {
     final theme = Theme.of(context);
 
     return AlertDialog(
+      scrollable: true,
       title: Text(
         widget.initial == null
             ? t(widget.parentContext, 'notifications_add_title')
@@ -567,11 +570,10 @@ class _NotificationEditorDialogState extends State<_NotificationEditorDialog> {
           fontWeight: FontWeight.bold,
         ),
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
             TextField(
               controller: _titleController,
               decoration: InputDecoration(
@@ -590,7 +592,7 @@ class _NotificationEditorDialogState extends State<_NotificationEditorDialog> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<NotificationScheduleType>(
-              value: _scheduleType,
+              initialValue: _scheduleType,
               decoration: InputDecoration(
                 labelText: t(widget.parentContext, 'notifications_field_schedule'),
                 border: const OutlineInputBorder(),
@@ -633,18 +635,19 @@ class _NotificationEditorDialogState extends State<_NotificationEditorDialog> {
                 ),
               ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _weekdayChip(DateTime.monday),
-                  _weekdayChip(DateTime.tuesday),
-                  _weekdayChip(DateTime.wednesday),
-                  _weekdayChip(DateTime.thursday),
-                  _weekdayChip(DateTime.friday),
-                  _weekdayChip(DateTime.saturday),
-                  _weekdayChip(DateTime.sunday),
-                ],
+              SizedBox(
+                height: 40,
+                child: Row(
+                  children: [
+                    for (final day in [DateTime.monday, DateTime.tuesday, DateTime.wednesday, DateTime.thursday, DateTime.friday, DateTime.saturday, DateTime.sunday])
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: _weekdayToggle(day),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
             ],
@@ -671,7 +674,6 @@ class _NotificationEditorDialogState extends State<_NotificationEditorDialog> {
             ],
           ],
         ),
-      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
