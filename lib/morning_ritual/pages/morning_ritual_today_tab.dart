@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:vibration/vibration.dart';
 import '../models/ritual_item.dart';
@@ -58,6 +59,7 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
   @override
   void dispose() {
     _timer?.cancel();
+    FlutterRingtonePlayer().stop();
     MorningRitualService.ritualItemsBox.listenable().removeListener(_onRitualItemsChanged);
     super.dispose();
   }
@@ -183,9 +185,26 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
     final soundEnabled = item?.soundEnabled ?? true;
 
     if (soundEnabled) {
-      // Cross-platform (iOS/Android) built-in feedback.
-      // We intentionally keep this simple and native: no custom asset bundling.
-      SystemSound.play(SystemSoundType.alert);
+      try {
+        // Use flutter_ringtone_player to play the system alarm sound
+        // This works reliably on both Android and iOS
+        await FlutterRingtonePlayer().play(
+          android: AndroidSounds.alarm,
+          ios: IosSounds.alarm,
+          looping: false,
+          volume: 1.0,
+          asAlarm: true,  // Uses alarm audio stream for proper volume control
+        );
+        
+        // Stop after 2 seconds (alarm sound can be long)
+        Future.delayed(const Duration(seconds: 2), () {
+          FlutterRingtonePlayer().stop();
+        });
+      } catch (e) {
+        // Fallback to system sound if ringtone player fails
+        debugPrint('FlutterRingtonePlayer failed: $e');
+        SystemSound.play(SystemSoundType.alert);
+      }
     }
 
     if (!vibrateEnabled) return;
@@ -194,7 +213,6 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
     final hasVibrator = await Vibration.hasVibrator();
     if (hasVibrator == true) {
       // Vibrate with pattern: vibrate 500ms, pause 200ms, repeat 3 times
-      // Pattern: [pause, vibrate, pause, vibrate, pause, vibrate]
       final hasAmplitude = await Vibration.hasAmplitudeControl();
       if (hasAmplitude == true) {
         // Use maximum amplitude for clear feedback
@@ -225,10 +243,22 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
     final item = _currentItem;
     if (item == null) return;
 
-    _timer?.cancel();
+    final wasRunningBeforeConfirm = _timerRunning;
+    final wasPausedBeforeConfirm = _timerPaused;
 
     var status = RitualItemStatus.completed;
     if (item.type == RitualItemType.timer && _remainingSeconds > 0) {
+      // Pause while asking for confirmation. If the user cancels, resume.
+      if (_timerRunning) {
+        _pauseTimer();
+      } else {
+        // Ensure we treat this as paused while the dialog is open.
+        setState(() {
+          _timerPaused = true;
+          _timerRunning = false;
+        });
+      }
+
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -249,11 +279,24 @@ class _MorningRitualTodayTabState extends State<MorningRitualTodayTab> {
       );
 
       if (confirmed != true) {
+        // Resume exactly where we left off.
+        if (!mounted) return;
+        if (wasRunningBeforeConfirm) {
+          _resumeTimer();
+        } else {
+          // Restore prior paused/not-started state.
+          setState(() {
+            _timerPaused = wasPausedBeforeConfirm;
+            _timerRunning = false;
+          });
+        }
         return;
       }
 
       status = RitualItemStatus.skipped;
     }
+
+    _timer?.cancel();
 
     final record = RitualItemRecord(
       ritualItemId: item.id,

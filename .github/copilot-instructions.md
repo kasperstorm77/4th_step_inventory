@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Multi-app Flutter system for AA recovery tools (**6 apps**: 4th Step Inventory, 8th Step Amends, Morning Ritual, Evening Ritual, Gratitude, Agnosticism) with shared infrastructure. Uses Hive for local storage, Google Drive for cloud sync, and Flutter Modular for DI/routing.
+Multi-app Flutter system for AA recovery tools (**7 apps**: 4th Step Inventory, 8th Step Amends, Morning Ritual, Evening Ritual, Gratitude, Agnosticism, Notifications) with shared infrastructure. Uses Hive for local storage, Google Drive for cloud sync, and Flutter Modular for DI/routing.
 
 ## Core Development Principle
 
@@ -189,7 +189,7 @@ final provider = Modular.get<LocaleProvider>();
 final box = Modular.get<Box<InventoryEntry>>();
 ```
 
-**Routing**: Single route (`/`) points to `AppHomePage` which renders `AppRouter`. `AppRouter` switches between the 6 app home pages based on `AppSwitcherService.getSelectedAppId()`.
+**Routing**: Single route (`/`) points to `AppHomePage` which renders `AppRouter`. `AppRouter` switches between the 7 app home pages based on `AppSwitcherService.getSelectedAppId()`.
 
 ## UI Styling Patterns
 
@@ -412,7 +412,8 @@ import 'package:google_sign_in/google_sign_in.dart'; // Mobile only
 
 - **App Entry**: `lib/main.dart` (Hive init, silent sign-in, auto-sync for all platforms)
 - **Routing**: `lib/app/app_module.dart`, `lib/app/app_widget.dart`, `lib/shared/pages/app_router.dart`
-- **Drive Sync**: `lib/shared/services/all_apps_drive_service_impl.dart` (syncs all 6 apps)
+- **Drive Sync**: `lib/shared/services/all_apps_drive_service_impl.dart` (syncs all 7 apps)
+- **Notifications**: `lib/notifications/services/notifications_service.dart` (local notifications scheduling)
 - **Windows OAuth**: `lib/shared/services/google_drive/windows_google_auth_service.dart` (loopback method)
 - **Mobile OAuth**: `lib/shared/services/google_drive/mobile_google_auth_service.dart`
 - **Data Management**: 
@@ -434,6 +435,7 @@ import 'package:google_sign_in/google_sign_in.dart'; // Mobile only
 - Evening Ritual: `lib/evening_ritual/pages/evening_ritual_home.dart`
 - Gratitude: `lib/gratitude/pages/gratitude_home.dart`
 - Agnosticism: `lib/agnosticism/pages/agnosticism_home.dart`
+- Notifications: `lib/notifications/pages/notifications_home.dart`
 
 ## Documentation
 
@@ -462,7 +464,7 @@ Before making changes that affect data:
 - `my-release-key.jks` - Release signing key. **IF DELETED: Cannot update app on Play Store EVER**
 - `debug.keystore` - Debug signing key with registered SHA-1. **IF DELETED: Google Sign-In breaks**
 
-❌ **Don't**: Reuse Hive type IDs (0-13 are assigned)
+❌ **Don't**: Reuse Hive type IDs (0-16 are assigned)
 ❌ **Don't**: Delete I Am without checking usage  
 ❌ **Don't**: Import entries before I Am definitions  
 ❌ **Don't**: Skip timestamp comparison in Drive sync  
@@ -470,6 +472,7 @@ Before making changes that affect data:
 ❌ **Don't**: Forget to add translations to BOTH en and da maps
 ❌ **Don't**: Forget `mounted` checks before using context after async operations
 ❌ **Don't**: Delete `.jks` or `.keystore` files when "cleaning up" the project root
+❌ **Don't**: Forget BroadcastReceivers in AndroidManifest for scheduled notifications
 ✅ **Do**: Use loopback HTTP server for desktop OAuth (`http://127.0.0.1:PORT`)
 ✅ **Do**: Use debounced uploads for performance (700ms)
 ✅ **Do**: Show warnings before data replacement  
@@ -477,3 +480,4 @@ Before making changes that affect data:
 ✅ **Do**: Include lastModified in all sync JSON (v7.0 format)
 ✅ **Do**: Use nested ValueListenableBuilder when UI depends on multiple boxes
 ✅ **Do**: Pass `onAppSwitched` callback to all app home pages
+✅ **Do**: Register `ScheduledNotificationReceiver` and `ScheduledNotificationBootReceiver` in AndroidManifest

@@ -220,7 +220,12 @@ class _NotificationsHomeState extends State<NotificationsHome> {
 
   String _formatTime(BuildContext context, int timeMinutes) {
     final tod = TimeOfDay(hour: timeMinutes ~/ 60, minute: timeMinutes % 60);
-    return MaterialLocalizations.of(context).formatTimeOfDay(tod);
+    // Use 24-hour format if device uses it, otherwise use locale default
+    final use24Hour = MediaQuery.of(context).alwaysUse24HourFormat;
+    return MaterialLocalizations.of(context).formatTimeOfDay(
+      tod,
+      alwaysUse24HourFormat: use24Hour,
+    );
   }
 
   String _weekdayLabel(BuildContext context, int weekday) {
@@ -257,199 +262,15 @@ class _NotificationsHomeState extends State<NotificationsHome> {
   Future<_NotificationFormResult?> _openNotificationEditor({
     _NotificationFormResult? initial,
   }) async {
-    final theme = Theme.of(context);
-    final titleController = TextEditingController(text: initial?.title ?? '');
-    final bodyController = TextEditingController(text: initial?.body ?? '');
-    var scheduleType = initial?.scheduleType ?? NotificationScheduleType.daily;
-    var time = initial?.time ?? const TimeOfDay(hour: 8, minute: 0);
-    final weekdays = (initial?.weekdays.toSet() ?? <int>{});
-    var enabled = initial?.enabled ?? true;
-
-    bool isValid() {
-      if (titleController.text.trim().isEmpty) return false;
-      if (scheduleType == NotificationScheduleType.weekly && weekdays.isEmpty) return false;
-      return true;
-    }
-
-    final result = await showDialog<_NotificationFormResult>(
+    return showDialog<_NotificationFormResult>(
       context: context,
       builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            Future<void> pickTime() async {
-              final picked = await showTimePicker(
-                context: dialogContext,
-                initialTime: time,
-              );
-              if (picked == null) return;
-              setDialogState(() {
-                time = picked;
-              });
-            }
-
-            Widget weekdayChip(int weekday) {
-              final selected = weekdays.contains(weekday);
-              return FilterChip(
-                selected: selected,
-                label: Text(_weekdayLabel(context, weekday)),
-                onSelected: (v) {
-                  setDialogState(() {
-                    if (v) {
-                      weekdays.add(weekday);
-                    } else {
-                      weekdays.remove(weekday);
-                    }
-                  });
-                },
-              );
-            }
-
-            return AlertDialog(
-              title: Text(
-                initial == null
-                    ? t(context, 'notifications_add_title')
-                    : t(context, 'notifications_edit_title'),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: titleController,
-                      decoration: InputDecoration(
-                        labelText: t(context, 'notifications_field_title'),
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: bodyController,
-                      decoration: InputDecoration(
-                        labelText: t(context, 'notifications_field_body'),
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<NotificationScheduleType>(
-                      key: ValueKey<NotificationScheduleType>(scheduleType),
-                      initialValue: scheduleType,
-                      decoration: InputDecoration(
-                        labelText: t(context, 'notifications_field_schedule'),
-                        border: const OutlineInputBorder(),
-                      ),
-                      items: [
-                        DropdownMenuItem(
-                          value: NotificationScheduleType.daily,
-                          child: Text(t(context, 'notifications_schedule_daily')),
-                        ),
-                        DropdownMenuItem(
-                          value: NotificationScheduleType.weekly,
-                          child: Text(t(context, 'notifications_schedule_weekly')),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setDialogState(() {
-                          scheduleType = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: pickTime,
-                        icon: const Icon(Icons.access_time),
-                        label: Text(
-                          '${t(context, 'notifications_field_time')}: ${MaterialLocalizations.of(context).formatTimeOfDay(time)}',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (scheduleType == NotificationScheduleType.weekly) ...[
-                      Text(
-                        t(context, 'notifications_field_weekdays'),
-                        style: TextStyle(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          weekdayChip(DateTime.monday),
-                          weekdayChip(DateTime.tuesday),
-                          weekdayChip(DateTime.wednesday),
-                          weekdayChip(DateTime.thursday),
-                          weekdayChip(DateTime.friday),
-                          weekdayChip(DateTime.saturday),
-                          weekdayChip(DateTime.sunday),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(t(context, 'notifications_field_enabled')),
-                      value: enabled,
-                      onChanged: (v) {
-                        setDialogState(() {
-                          enabled = v;
-                        });
-                      },
-                    ),
-                    if (!isValid()) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        scheduleType == NotificationScheduleType.weekly && weekdays.isEmpty
-                            ? t(context, 'notifications_validation_weekdays')
-                            : t(context, 'notifications_validation_title'),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(t(context, 'cancel')),
-                ),
-                TextButton(
-                  onPressed: isValid()
-                      ? () {
-                          Navigator.of(dialogContext).pop(
-                            _NotificationFormResult(
-                              title: titleController.text,
-                              body: bodyController.text,
-                              scheduleType: scheduleType,
-                              time: time,
-                              weekdays: weekdays,
-                              enabled: enabled,
-                            ),
-                          );
-                        }
-                      : null,
-                  child: Text(t(context, 'save')),
-                ),
-              ],
-            );
-          },
+        return _NotificationEditorDialog(
+          initial: initial,
+          parentContext: context,
         );
       },
     );
-
-    titleController.dispose();
-    bodyController.dispose();
-    return result;
   }
 
   @override
@@ -483,6 +304,15 @@ class _NotificationsHomeState extends State<NotificationsHome> {
             tooltip: t(context, 'help'),
             icon: const Icon(Icons.help_outline),
             onPressed: _showHelp,
+          ),
+          // Debug button - only in debug mode
+          IconButton(
+            tooltip: 'Test Notification (Debug)',
+            icon: const Icon(Icons.bug_report),
+            onPressed: () async {
+              await NotificationsService.checkPendingNotifications();
+              await NotificationsService.sendTestNotification();
+            },
           ),
           IconButton(
             tooltip: t(context, 'data_management'),
@@ -626,6 +456,245 @@ class _NotificationsHomeState extends State<NotificationsHome> {
           );
         },
       ),
+    );
+  }
+}
+
+class _NotificationEditorDialog extends StatefulWidget {
+  final _NotificationFormResult? initial;
+  final BuildContext parentContext;
+
+  const _NotificationEditorDialog({
+    required this.initial,
+    required this.parentContext,
+  });
+
+  @override
+  State<_NotificationEditorDialog> createState() => _NotificationEditorDialogState();
+}
+
+class _NotificationEditorDialogState extends State<_NotificationEditorDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _bodyController;
+  late NotificationScheduleType _scheduleType;
+  late TimeOfDay _time;
+  late Set<int> _weekdays;
+  late bool _enabled;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.initial?.title ?? '');
+    _bodyController = TextEditingController(text: widget.initial?.body ?? '');
+    _scheduleType = widget.initial?.scheduleType ?? NotificationScheduleType.daily;
+    _time = widget.initial?.time ?? const TimeOfDay(hour: 8, minute: 0);
+    _weekdays = widget.initial?.weekdays.toSet() ?? <int>{};
+    _enabled = widget.initial?.enabled ?? true;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _bodyController.dispose();
+    super.dispose();
+  }
+
+  bool _isValid() {
+    if (_titleController.text.trim().isEmpty) return false;
+    if (_scheduleType == NotificationScheduleType.weekly && _weekdays.isEmpty) return false;
+    return true;
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _time,
+    );
+    if (picked == null) return;
+    setState(() {
+      _time = picked;
+    });
+  }
+
+  String _weekdayLabel(int weekday) {
+    switch (weekday) {
+      case DateTime.monday:
+        return t(widget.parentContext, 'weekday_mon');
+      case DateTime.tuesday:
+        return t(widget.parentContext, 'weekday_tue');
+      case DateTime.wednesday:
+        return t(widget.parentContext, 'weekday_wed');
+      case DateTime.thursday:
+        return t(widget.parentContext, 'weekday_thu');
+      case DateTime.friday:
+        return t(widget.parentContext, 'weekday_fri');
+      case DateTime.saturday:
+        return t(widget.parentContext, 'weekday_sat');
+      case DateTime.sunday:
+        return t(widget.parentContext, 'weekday_sun');
+      default:
+        return weekday.toString();
+    }
+  }
+
+  Widget _weekdayChip(int weekday) {
+    final selected = _weekdays.contains(weekday);
+    return FilterChip(
+      selected: selected,
+      label: Text(_weekdayLabel(weekday)),
+      onSelected: (v) {
+        setState(() {
+          if (v) {
+            _weekdays.add(weekday);
+          } else {
+            _weekdays.remove(weekday);
+          }
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      title: Text(
+        widget.initial == null
+            ? t(widget.parentContext, 'notifications_add_title')
+            : t(widget.parentContext, 'notifications_edit_title'),
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: InputDecoration(
+                labelText: t(widget.parentContext, 'notifications_field_title'),
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _bodyController,
+              decoration: InputDecoration(
+                labelText: t(widget.parentContext, 'notifications_field_body'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<NotificationScheduleType>(
+              value: _scheduleType,
+              decoration: InputDecoration(
+                labelText: t(widget.parentContext, 'notifications_field_schedule'),
+                border: const OutlineInputBorder(),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: NotificationScheduleType.daily,
+                  child: Text(t(widget.parentContext, 'notifications_schedule_daily')),
+                ),
+                DropdownMenuItem(
+                  value: NotificationScheduleType.weekly,
+                  child: Text(t(widget.parentContext, 'notifications_schedule_weekly')),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _scheduleType = value;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _pickTime,
+                icon: const Icon(Icons.access_time),
+                label: Text(
+                  '${t(widget.parentContext, 'notifications_field_time')}: ${MaterialLocalizations.of(context).formatTimeOfDay(_time, alwaysUse24HourFormat: MediaQuery.of(context).alwaysUse24HourFormat)}',
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_scheduleType == NotificationScheduleType.weekly) ...[
+              Text(
+                t(widget.parentContext, 'notifications_field_weekdays'),
+                style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _weekdayChip(DateTime.monday),
+                  _weekdayChip(DateTime.tuesday),
+                  _weekdayChip(DateTime.wednesday),
+                  _weekdayChip(DateTime.thursday),
+                  _weekdayChip(DateTime.friday),
+                  _weekdayChip(DateTime.saturday),
+                  _weekdayChip(DateTime.sunday),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(t(widget.parentContext, 'notifications_field_enabled')),
+              value: _enabled,
+              onChanged: (v) {
+                setState(() {
+                  _enabled = v;
+                });
+              },
+            ),
+            if (!_isValid()) ...[
+              const SizedBox(height: 8),
+              Text(
+                _scheduleType == NotificationScheduleType.weekly && _weekdays.isEmpty
+                    ? t(widget.parentContext, 'notifications_validation_weekdays')
+                    : t(widget.parentContext, 'notifications_validation_title'),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(t(widget.parentContext, 'cancel')),
+        ),
+        TextButton(
+          onPressed: _isValid()
+              ? () {
+                  Navigator.of(context).pop(
+                    _NotificationFormResult(
+                      title: _titleController.text,
+                      body: _bodyController.text,
+                      scheduleType: _scheduleType,
+                      time: _time,
+                      weekdays: _weekdays,
+                      enabled: _enabled,
+                    ),
+                  );
+                }
+              : null,
+          child: Text(t(widget.parentContext, 'save')),
+        ),
+      ],
     );
   }
 }
