@@ -27,6 +27,7 @@ import '../services/google_sign_in_wrapper.dart';
 import '../services/all_apps_drive_service.dart';
 import '../services/app_settings_service.dart';
 import '../services/data_refresh_service.dart';
+import '../services/local_backup_service.dart';
 
 // Google Drive scopes
 const String driveAppdataScope =
@@ -139,16 +140,17 @@ class _DataManagementTabState extends State<DataManagementTab> {
       }
     }
     
-    // Load available backups if signed in
+    // Load available backups (Drive if signed in, local otherwise)
     _loadAvailableBackups();
   }
 
-  /// Load available backup restore points from Drive
+  /// Load available backup restore points (Drive if signed in, local otherwise)
   Future<void> _loadAvailableBackups() async {
-    if (kDebugMode) print('_loadAvailableBackups: called - isMobile=${PlatformHelper.isMobile}, currentUser=${_currentUser?.displayName}');
+    final isSignedIn = _currentUser != null;
+    if (kDebugMode) print('_loadAvailableBackups: called - isMobile=${PlatformHelper.isMobile}, isSignedIn=$isSignedIn');
     
-    if (!PlatformHelper.isMobile || _currentUser == null) {
-      if (kDebugMode) print('_loadAvailableBackups: skipped - not mobile or no user');
+    if (!PlatformHelper.isMobile) {
+      if (kDebugMode) print('_loadAvailableBackups: skipped - not mobile');
       return;
     }
     
@@ -157,7 +159,15 @@ class _DataManagementTabState extends State<DataManagementTab> {
     });
 
     try {
-      final backups = await AllAppsDriveService.instance.listAvailableBackups();
+      List<Map<String, dynamic>> backups;
+      
+      if (isSignedIn) {
+        // Load from Google Drive when signed in
+        backups = await AllAppsDriveService.instance.listAvailableBackups();
+      } else {
+        // Load from local storage when not signed in
+        backups = await LocalBackupService.instance.listAvailableBackups();
+      }
       
       if (mounted) {
         setState(() {
@@ -517,6 +527,28 @@ class _DataManagementTabState extends State<DataManagementTab> {
     }
   }
 
+  /// Create a local backup manually
+  Future<void> _createLocalBackup() async {
+    final messenger = ScaffoldMessenger.of(context);
+    
+    try {
+      await LocalBackupService.instance.createBackupNow();
+      
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(t(context, 'backup_created'))),
+      );
+      
+      // Refresh the backup list
+      await _loadAvailableBackups();
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('${t(context, 'backup_failed')}: $e')),
+      );
+    }
+  }
+
   /// Delete all backup files from Drive (DEBUG ONLY)
   Future<void> _deleteAllBackups() async {
     if (!AllAppsDriveService.instance.isAuthenticated) return;
@@ -564,9 +596,12 @@ class _DataManagementTabState extends State<DataManagementTab> {
   }
 
   Future<void> _fetchFromGoogle() async {
-    if (kDebugMode) print('_fetchFromGoogle: Starting restore...');
-    if (!AllAppsDriveService.instance.isAuthenticated) {
-      if (kDebugMode) print('_fetchFromGoogle: Not authenticated, returning');
+    final isSignedIn = _currentUser != null;
+    if (kDebugMode) print('_fetchFromGoogle: Starting restore... isSignedIn=$isSignedIn');
+    
+    // For Drive restore, must be authenticated
+    if (isSignedIn && !AllAppsDriveService.instance.isAuthenticated) {
+      if (kDebugMode) print('_fetchFromGoogle: Signed in but not authenticated, returning');
       return;
     }
     
@@ -603,29 +638,57 @@ class _DataManagementTabState extends State<DataManagementTab> {
       // Download from selected backup or most recent backup
       String? backupFileName = _selectedBackupFileName;
       
-      // If no backup selected, find the most recent one
-      if (backupFileName == null || backupFileName.isEmpty) {
-        final backups = await AllAppsDriveService.instance.listAvailableBackups();
-        if (backups.isEmpty) {
-          if (kDebugMode) print('_fetchFromGoogle: No backups found on Drive');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(t(context, 'no_data_found'))),
-            );
+      if (isSignedIn) {
+        // Restore from Google Drive
+        // If no backup selected, find the most recent one
+        if (backupFileName == null || backupFileName.isEmpty) {
+          final backups = await AllAppsDriveService.instance.listAvailableBackups();
+          if (backups.isEmpty) {
+            if (kDebugMode) print('_fetchFromGoogle: No backups found on Drive');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(t(context, 'no_data_found'))),
+              );
+            }
+            return;
           }
+          // Backups are sorted newest first
+          backupFileName = backups.first['fileName'] as String?;
+          if (kDebugMode) print('_fetchFromGoogle: Using most recent backup: $backupFileName');
+        }
+        
+        if (backupFileName == null || backupFileName.isEmpty) {
+          if (kDebugMode) print('_fetchFromGoogle: No backup file name available');
           return;
         }
-        // Backups are sorted newest first
-        backupFileName = backups.first['fileName'] as String?;
-        if (kDebugMode) print('_fetchFromGoogle: Using most recent backup: $backupFileName');
+        
+        content = await AllAppsDriveService.instance.downloadBackupContent(backupFileName);
+      } else {
+        // Restore from local backup
+        // If no backup selected, find the most recent one
+        if (backupFileName == null || backupFileName.isEmpty) {
+          final backups = await LocalBackupService.instance.listAvailableBackups();
+          if (backups.isEmpty) {
+            if (kDebugMode) print('_fetchFromGoogle: No local backups found');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(t(context, 'no_data_found'))),
+              );
+            }
+            return;
+          }
+          // Backups are sorted newest first
+          backupFileName = backups.first['fileName'] as String?;
+          if (kDebugMode) print('_fetchFromGoogle: Using most recent local backup: $backupFileName');
+        }
+        
+        if (backupFileName == null || backupFileName.isEmpty) {
+          if (kDebugMode) print('_fetchFromGoogle: No local backup file name available');
+          return;
+        }
+        
+        content = await LocalBackupService.instance.downloadBackupContent(backupFileName);
       }
-      
-      if (backupFileName == null || backupFileName.isEmpty) {
-        if (kDebugMode) print('_fetchFromGoogle: No backup file name available');
-        return;
-      }
-      
-      content = await AllAppsDriveService.instance.downloadBackupContent(backupFileName);
       
       if (content == null) {
         if (kDebugMode) print('_fetchFromGoogle: Downloaded content is null');
@@ -1245,117 +1308,146 @@ class _DataManagementTabState extends State<DataManagementTab> {
           ElevatedButton(onPressed: _importJson, child: Text(t(context, 'import_json'))),
           const SizedBox(height: 16),
           
-          // Backup selection dropdown and fetch button (only show when signed in on mobile)
-          if (isSignedIn && driveAvailable) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.restore, color: Theme.of(context).colorScheme.primary),
-                        const SizedBox(width: 8),
-                        Text(
-                          t(context, 'select_restore_point'),
+          // Backup selection dropdown and restore button
+          // Shows Drive backups when signed in, Local backups when not
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        isSignedIn ? Icons.cloud : Icons.folder,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isSignedIn
+                              ? t(context, 'select_restore_point_drive')
+                              : t(context, 'select_restore_point_local'),
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const Spacer(),
-                        if (_loadingBackups)
-                          const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        else
-                          IconButton(
-                            icon: const Icon(Icons.refresh),
-                            onPressed: _loadAvailableBackups,
-                            tooltip: t(context, 'refresh_backups'),
-                          ),
-                      ],
+                      ),
+                      if (_loadingBackups)
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else
+                        IconButton(
+                          icon: const Icon(Icons.refresh),
+                          onPressed: _loadAvailableBackups,
+                          tooltip: t(context, 'refresh_backups'),
+                        ),
+                    ],
+                  ),
+                  // Show note for local backups
+                  if (!isSignedIn) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      t(context, 'local_backup_note'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    if (_availableBackups.isEmpty && !_loadingBackups)
-                      Text(
-                        t(context, 'no_backups_available'),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey,
+                  ],
+                  const SizedBox(height: 8),
+                  if (_availableBackups.isEmpty && !_loadingBackups)
+                    Text(
+                      t(context, 'no_backups_available'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey,
+                      ),
+                    )
+                  else
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: _selectedBackupFileName,
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        labelText: t(context, 'restore_point_latest'),
+                      ),
+                      items: [
+                        // Add "Latest" option (uses most recent backup)
+                        DropdownMenuItem<String>(
+                          value: null,
+                          child: Row(
+                            children: [
+                              Icon(
+                                isSignedIn ? Icons.cloud : Icons.folder,
+                                size: 20,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  t(context, 'restore_point_latest'),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      )
-                    else
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        initialValue: _selectedBackupFileName,
-                        decoration: InputDecoration(
-                          border: const OutlineInputBorder(),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          labelText: t(context, 'restore_point_latest'),
-                        ),
-                        items: [
-                          // Add "Latest" option (uses current file, not dated backup)
-                          DropdownMenuItem<String>(
-                            value: null,
+                        // Add dated backups
+                        ..._availableBackups.map((backup) {
+                          final displayDate = backup['displayDate'] as String;
+                          final fileName = backup['fileName'] as String;
+                          return DropdownMenuItem<String>(
+                            value: fileName,
                             child: Row(
                               children: [
-                                Icon(Icons.cloud, size: 20, color: Theme.of(context).colorScheme.primary),
+                                const Icon(Icons.history, size: 20, color: Colors.blue),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    t(context, 'restore_point_latest'),
+                                    displayDate,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                          // Add dated backups
-                          ..._availableBackups.map((backup) {
-                            final displayDate = backup['displayDate'] as String;
-                            final fileName = backup['fileName'] as String;
-                            return DropdownMenuItem<String>(
-                              value: fileName,
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.history, size: 20, color: Colors.blue),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      displayDate,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedBackupFileName = value;
-                          });
-                        },
-                      ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: _fetchFromGoogle,
-                      icon: const Icon(Icons.download),
-                      label: Text(t(context, 'restore_from_backup')),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      ),
+                          );
+                        }),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedBackupFileName = value;
+                        });
+                      },
+                    ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: _fetchFromGoogle,
+                    icon: const Icon(Icons.download),
+                    label: Text(t(context, 'restore_from_backup')),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                  // Create Local Backup button (only when not signed in)
+                  if (!isSignedIn) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _createLocalBackup,
+                      icon: const Icon(Icons.save),
+                      label: Text(t(context, 'create_local_backup')),
                     ),
                   ],
-                ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-          ],
+          ),
+          const SizedBox(height: 16),
           
           // Manual upload button for mobile when signed in
           if (isSignedIn && driveAvailable)

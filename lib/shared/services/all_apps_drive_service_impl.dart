@@ -16,6 +16,7 @@ import 'google_drive/mobile_drive_service.dart';
 import 'google_drive/windows_drive_service_wrapper.dart';
 import '../utils/platform_helper.dart';
 import 'app_settings_service.dart';
+import 'local_backup_service.dart';
 
 // --------------------------------------------------------------------------
 // All Apps Drive Service - Platform-Aware Implementation
@@ -313,10 +314,15 @@ class AllAppsDriveService {
   /// Schedule debounced upload from box (background sync - no UI notifications)
   /// The box parameter is optional - if not provided, entries will be fetched from the standard entries box
   /// Uses debouncing to coalesce rapid changes (e.g., multiple reorders) into a single upload
+  /// Also triggers local backup regardless of Drive sync status
   void scheduleUploadFromBox([Box<InventoryEntry>? box]) {
     if (kDebugMode) print('AllAppsDriveService: scheduleUploadFromBox called - syncEnabled=$syncEnabled, isAuthenticated=$isAuthenticated, uploadsBlocked=$_uploadsBlocked');
+    
+    // Always schedule local backup regardless of Drive sync status
+    LocalBackupService.instance.scheduleBackup();
+    
     if (!syncEnabled || !isAuthenticated) {
-      if (kDebugMode) print('AllAppsDriveService: ⚠️ Upload skipped - sync not enabled or not authenticated');
+      if (kDebugMode) print('AllAppsDriveService: ⚠️ Drive upload skipped - sync not enabled or not authenticated');
       return;
     }
     
