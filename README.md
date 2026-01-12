@@ -9,7 +9,7 @@ A free, comprehensive recovery companion for people working the 12 Steps. Seven 
 | Platform | Status | Link |
 |----------|--------|------|
 | **iOS** | ✅ Available | [Download on the App Store](https://apps.apple.com/dk/app/twelve-step-app/id6756220504) |
-| **Android** | 🧪 Beta Testing | Coming soon to Google Play |
+| **Android** | ✅ Available | [Download on Play Store](https://play.google.com/store/apps/details?id=dk.stormstyrken.twelvestepsapp) |
 | **Windows** | ✅ Available | [Download from GitHub Releases](https://github.com/kasperstorm77/twelve_step_app/releases) |
 
 ---
