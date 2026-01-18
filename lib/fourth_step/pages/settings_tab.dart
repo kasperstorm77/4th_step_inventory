@@ -336,11 +336,12 @@ class _SettingsTabState extends State<SettingsTab> {
     );
   }
 
-  /// Escape a value for CSV (handle commas, quotes, newlines)
+  /// Escape a value for CSV (handle semicolons, quotes, newlines)
+  /// Uses semicolon as separator for European locale compatibility
   String _escapeCsvValue(String? value) {
     if (value == null || value.isEmpty) return '';
-    // If value contains comma, quote, or newline, wrap in quotes and escape quotes
-    if (value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r')) {
+    // If value contains semicolon, quote, or newline, wrap in quotes and escape quotes
+    if (value.contains(';') || value.contains('"') || value.contains('\n') || value.contains('\r')) {
       return '"${value.replaceAll('"', '""')}"';
     }
     return value;
@@ -372,7 +373,7 @@ class _SettingsTabState extends State<SettingsTab> {
         return;
       }
 
-      // Build CSV content
+      // Build CSV content with semicolon separator (European locale compatible)
       final buffer = StringBuffer();
       
       // Header row
@@ -385,16 +386,16 @@ class _SettingsTabState extends State<SettingsTab> {
         _escapeCsvValue(t(context, 'affect_my')),
         _escapeCsvValue(t(context, 'my_take')),
         _escapeCsvValue(t(context, 'shortcomings')),
-      ].join(','));
+      ].join(';'));
 
       // Data rows
       for (final entry in entries) {
         final category = entry.effectiveCategory;
-        // Get all I Am names, joined with semicolons for CSV compatibility
+        // Get all I Am names, joined with commas within the cell
         final iAmNames = entry.effectiveIAmIds
             .map((id) => _iAmService.getNameById(iAmBox, id))
             .where((name) => name != null)
-            .join('; ');
+            .join(', ');
         
         buffer.writeln([
           _escapeCsvValue(entry.order?.toString() ?? ''),
@@ -405,11 +406,14 @@ class _SettingsTabState extends State<SettingsTab> {
           _escapeCsvValue(entry.affect),
           _escapeCsvValue(entry.part),
           _escapeCsvValue(entry.defect),
-        ].join(','));
+        ].join(';'));
       }
 
       final csvString = buffer.toString();
-      final bytes = Uint8List.fromList(utf8.encode(csvString));
+      // Add UTF-8 BOM for proper character encoding in Excel
+      final bom = [0xEF, 0xBB, 0xBF];
+      final csvBytes = utf8.encode(csvString);
+      final bytes = Uint8List.fromList([...bom, ...csvBytes]);
       final fileName = 'fourth_step_export_${DateTime.now().millisecondsSinceEpoch}.csv';
 
       String? savedPath;
