@@ -812,6 +812,33 @@ pending release notes and the store copy; the catalog asset keeps the upstream
 `da` title because it is generated and unused by this app's UI. Already-shipped
 release notes are left as they shipped.
 
+## Phase 24 — Just for Today becomes a first-class ritual choice
+
+The randomized reading already existed, but the add-item type menu exposed only
+Timer and Prayer. Just for Today was hidden behind a switch that appeared only
+after Prayer was selected, so the feature looked absent in the workflow where a
+person builds a morning ritual.
+
+The editor now presents Timer, Prayer and Just for Today directly. The third
+choice is presentation-only and maps back to the frozen portable representation:
+`RitualItemType.prayer` plus `randomizerSourceId: just_for_today`. An empty name
+becomes the exact English product name `Just for Today` in both UI languages,
+and converting a fixed prayer clears its stale `prayerText`. The Hive enum,
+field indices, JSON schema, catalog and runner remain unchanged.
+
+Widget tests open the real add dialog in English and Danish, select the new
+choice, and assert the Hive object written by the service. Existing runner tests
+continue to prove that one of ten entries is displayed and retained through
+previous, start over and resume before the selected ID and text reach history.
+
+Release verification kept the existing full-suite timing exception explicit:
+the default parallel runner reproduced the documented `Start Over` widget-test
+timeout, while the focused runner suite passed and the complete serial suite
+passed all 151 tests. `flutter analyze` was clean. The mandatory bidirectional
+recovery gate then proved that this app still restores Emotional Sobriety's
+fixtures, Emotional Sobriety accepts a live export containing the randomized
+definition and history fields, and both applications' own parity suites pass.
+
 ---
 
 ## Data-format migration notes

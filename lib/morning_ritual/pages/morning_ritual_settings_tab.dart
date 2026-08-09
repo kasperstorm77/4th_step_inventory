@@ -5,6 +5,7 @@ import '../services/morning_randomizer_source.dart';
 import '../services/morning_ritual_service.dart';
 import '../../shared/localizations.dart';
 import '../../shared/utils/platform_helper.dart';
+import 'morning_ritual_definition_kind.dart';
 
 class MorningRitualSettingsTab extends StatefulWidget {
   const MorningRitualSettingsTab({super.key});
@@ -150,17 +151,21 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
     final secondsController = TextEditingController(
       text: ((item?.durationSeconds ?? 0) % 60).toString().padLeft(2, '0'),
     );
-    RitualItemType selectedType = item?.type ?? RitualItemType.timer;
+    var selectedKind = item == null
+        ? MorningRitualDefinitionKind.timer
+        : MorningRitualDefinitionKind.fromItem(item);
 
     var vibrateEnabled = item?.vibrateEnabled ?? true;
     var soundEnabled = item?.soundEnabled ?? true;
     String? soundId = item?.soundId;
-    // A randomized reading draws its text from a shared content source instead
-    // of the item's own prayer text. Emotional Sobriety allows at most one such
-    // item and rejects a backup carrying two, so the same limit applies here.
-    var isJustForToday =
-        item?.randomizerSourceId ==
-        MorningRandomizerContract.justForTodaySourceId;
+    // Emotional Sobriety refuses a whole backup containing two randomized
+    // definitions, so keep the choice visible but unavailable when one exists.
+    final hasAnotherJustForToday = MorningRitualService.getAllRitualItems().any(
+      (other) =>
+          other.id != item?.id &&
+          other.randomizerSourceId ==
+              MorningRandomizerContract.justForTodaySourceId,
+    );
 
     showDialog(
       context: context,
@@ -189,42 +194,62 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
                   ),
                   const SizedBox(height: 16),
                   // Using value (not initialValue) because we need dynamic updates via setDialogState
-                  DropdownButtonFormField<RitualItemType>(
+                  DropdownButtonFormField<MorningRitualDefinitionKind>(
                     // ignore: deprecated_member_use
-                    value: selectedType,
+                    value: selectedKind,
                     decoration: InputDecoration(
                       labelText: t(context, 'morning_ritual_item_type'),
                       border: const OutlineInputBorder(),
                     ),
                     isExpanded: true,
-                    items: RitualItemType.values.map((type) {
+                    items: MorningRitualDefinitionKind.values.map((kind) {
                       return DropdownMenuItem(
-                        value: type,
+                        value: kind,
+                        enabled:
+                            kind != MorningRitualDefinitionKind.justForToday ||
+                            !hasAnotherJustForToday,
                         child: Row(
                           children: [
                             Icon(
-                              type == RitualItemType.timer
+                              kind == MorningRitualDefinitionKind.timer
                                   ? Icons.timer
                                   : Icons.menu_book,
                               size: 20,
                             ),
                             const SizedBox(width: 8),
-                            Text(t(context, type.labelKey())),
+                            Text(t(context, kind.labelKey)),
                           ],
                         ),
                       );
                     }).toList(),
                     onChanged: (value) {
-                      if (value != null && value != selectedType) {
+                      if (value != null && value != selectedKind) {
                         setDialogState(() {
-                          selectedType = value;
+                          selectedKind = value;
+                          if (value ==
+                                  MorningRitualDefinitionKind.justForToday &&
+                              nameController.text.trim().isEmpty) {
+                            nameController.text = t(
+                              context,
+                              'morning_ritual_just_for_today',
+                            );
+                          }
                         });
                       }
                     },
                   ),
+                  if (hasAnotherJustForToday &&
+                      selectedKind !=
+                          MorningRitualDefinitionKind.justForToday) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      t(context, 'morning_ritual_just_for_today_single'),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   // Timer fields (duration) - show/hide based on type
-                  if (selectedType == RitualItemType.timer) ...[
+                  if (selectedKind == MorningRitualDefinitionKind.timer) ...[
                     Text(
                       t(context, 'morning_ritual_duration'),
                       style: Theme.of(context).textTheme.titleSmall,
@@ -350,37 +375,21 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
                       ),
                     ],
                   ],
-                  // Prayer fields - show/hide based on type
-                  if (selectedType == RitualItemType.prayer) ...[
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(t(context, 'morning_ritual_just_for_today')),
-                      subtitle: Text(
-                        t(context, 'morning_ritual_just_for_today_help'),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      value: isJustForToday,
-                      onChanged: (v) {
-                        setDialogState(() {
-                          isJustForToday = v;
-                        });
-                      },
+                  if (selectedKind == MorningRitualDefinitionKind.justForToday)
+                    Text(
+                      t(context, 'morning_ritual_just_for_today_help'),
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    const SizedBox(height: 8),
-                    // A randomized reading has no fixed text of its own.
-                    if (!isJustForToday)
-                      TextField(
-                        controller: prayerTextController,
-                        decoration: InputDecoration(
-                          labelText: t(context, 'morning_ritual_prayer_text'),
-                          hintText: t(
-                            context,
-                            'morning_ritual_prayer_text_hint',
-                          ),
-                          border: const OutlineInputBorder(),
-                        ),
-                        maxLines: 5,
+                  if (selectedKind == MorningRitualDefinitionKind.prayer) ...[
+                    TextField(
+                      controller: prayerTextController,
+                      decoration: InputDecoration(
+                        labelText: t(context, 'morning_ritual_prayer_text'),
+                        hintText: t(context, 'morning_ritual_prayer_text_hint'),
+                        border: const OutlineInputBorder(),
                       ),
+                      maxLines: 5,
+                    ),
                   ],
                 ],
               ),
@@ -410,8 +419,9 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
 
                 // Only a prayer can draw from a reading source, and Emotional
                 // Sobriety rejects a backup carrying two of them.
+                final persistedType = selectedKind.persistedType;
                 final wantsRandomizer =
-                    selectedType == RitualItemType.prayer && isJustForToday;
+                    selectedKind == MorningRitualDefinitionKind.justForToday;
                 if (wantsRandomizer &&
                     MorningRitualService.getAllRitualItems().any(
                       (other) =>
@@ -432,50 +442,56 @@ class MorningRitualSettingsTabState extends State<MorningRitualSettingsTab> {
                 if (isEdit) {
                   final updated = item.copyWith(
                     name: nameController.text.trim(),
-                    type: selectedType,
-                    durationSeconds: selectedType == RitualItemType.timer
+                    type: persistedType,
+                    durationSeconds:
+                        selectedKind == MorningRitualDefinitionKind.timer
                         ? totalSeconds
                         : null,
-                    prayerText: selectedType == RitualItemType.prayer
+                    prayerText:
+                        selectedKind == MorningRitualDefinitionKind.prayer
                         ? prayerTextController.text
                         : null,
-                    vibrateEnabled: selectedType == RitualItemType.timer
+                    clearPrayerText:
+                        selectedKind != MorningRitualDefinitionKind.prayer,
+                    vibrateEnabled:
+                        selectedKind == MorningRitualDefinitionKind.timer
                         ? vibrateEnabled
                         : true,
-                    soundEnabled: selectedType == RitualItemType.timer
+                    soundEnabled:
+                        selectedKind == MorningRitualDefinitionKind.timer
                         ? soundEnabled
                         : true,
-                    soundId: selectedType == RitualItemType.timer
+                    soundId: selectedKind == MorningRitualDefinitionKind.timer
                         ? soundId
                         : null,
-                    randomizerSourceId: wantsRandomizer
-                        ? MorningRandomizerContract.justForTodaySourceId
-                        : null,
+                    randomizerSourceId: selectedKind.randomizerSourceId,
                     clearRandomizerSourceId: !wantsRandomizer,
                   );
                   await MorningRitualService.updateRitualItem(updated);
                 } else {
                   final newItem = RitualItem(
                     name: nameController.text.trim(),
-                    type: selectedType,
-                    durationSeconds: selectedType == RitualItemType.timer
+                    type: persistedType,
+                    durationSeconds:
+                        selectedKind == MorningRitualDefinitionKind.timer
                         ? totalSeconds
                         : null,
-                    prayerText: selectedType == RitualItemType.prayer
+                    prayerText:
+                        selectedKind == MorningRitualDefinitionKind.prayer
                         ? prayerTextController.text
                         : null,
-                    vibrateEnabled: selectedType == RitualItemType.timer
+                    vibrateEnabled:
+                        selectedKind == MorningRitualDefinitionKind.timer
                         ? vibrateEnabled
                         : true,
-                    soundEnabled: selectedType == RitualItemType.timer
+                    soundEnabled:
+                        selectedKind == MorningRitualDefinitionKind.timer
                         ? soundEnabled
                         : true,
-                    soundId: selectedType == RitualItemType.timer
+                    soundId: selectedKind == MorningRitualDefinitionKind.timer
                         ? soundId
                         : null,
-                    randomizerSourceId: wantsRandomizer
-                        ? MorningRandomizerContract.justForTodaySourceId
-                        : null,
+                    randomizerSourceId: selectedKind.randomizerSourceId,
                   );
                   await MorningRitualService.addRitualItem(newItem);
                 }

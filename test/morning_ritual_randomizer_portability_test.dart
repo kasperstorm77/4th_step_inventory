@@ -10,6 +10,7 @@ import 'package:twelvestepsapp/fourth_step/models/inventory_entry.dart';
 import 'package:twelvestepsapp/gratitude/models/gratitude_entry.dart';
 import 'package:twelvestepsapp/morning_ritual/models/morning_ritual_entry.dart';
 import 'package:twelvestepsapp/morning_ritual/models/ritual_item.dart';
+import 'package:twelvestepsapp/morning_ritual/services/morning_randomizer_source.dart';
 import 'package:twelvestepsapp/notifications/models/app_notification.dart';
 import 'package:twelvestepsapp/shared/services/backup_restore_service.dart';
 import 'package:twelvestepsapp/shared/services/sync_payload_builder.dart';
@@ -64,6 +65,26 @@ void main() {
       expect(edited.toJson()['randomizerSourceId'], isNull);
     },
   );
+
+  test('copyWith clears fixed prayer text for a randomized definition', () {
+    final item = RitualItem(
+      id: 'reading',
+      name: 'Reading',
+      type: RitualItemType.prayer,
+      prayerText: 'Old fixed text',
+    );
+
+    final randomized = item.copyWith(
+      clearPrayerText: true,
+      randomizerSourceId: MorningRandomizerContract.justForTodaySourceId,
+    );
+
+    expect(randomized.prayerText, isNull);
+    expect(
+      randomized.randomizerSourceId,
+      MorningRandomizerContract.justForTodaySourceId,
+    );
+  });
 
   test('definition decoder rejects invalid randomizer source combinations', () {
     Map<String, dynamic> definition({

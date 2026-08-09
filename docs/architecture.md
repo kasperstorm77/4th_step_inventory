@@ -95,6 +95,10 @@ restored window is honoured) and re-checked on resume via `AppWidget`'s
 **Randomized readings ("Just for Today").** A *prayer* item may name a
 data-driven reading source in `RitualItem.randomizerSourceId` (Hive field
 11 / JSON `randomizerSourceId`) instead of carrying fixed `prayerText`.
+The item editor presents Timer, Prayer and Just for Today as three choices,
+but the third choice is presentation-only: it persists as `prayer=1` plus
+`randomizerSourceId: just_for_today`. Selecting it for an unnamed item fills
+the exact product name `Just for Today` in both UI languages.
 The only shipped source is `just_for_today`, whose ten options live in
 [`assets/content/morning_randomizer_v1.json`](../assets/content/morning_randomizer_v1.json)
 — **data, not Dart literals** — with `en` + `da` text and the stable option

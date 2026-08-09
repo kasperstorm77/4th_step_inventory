@@ -106,6 +106,7 @@ class RitualItem extends HiveObject {
     bool? soundEnabled,
     String? soundId,
     String? randomizerSourceId,
+    bool clearPrayerText = false,
     bool clearRandomizerSourceId = false,
   }) {
     final effectiveType = type ?? this.type;
@@ -114,7 +115,7 @@ class RitualItem extends HiveObject {
       name: name ?? this.name,
       type: effectiveType,
       durationSeconds: durationSeconds ?? this.durationSeconds,
-      prayerText: prayerText ?? this.prayerText,
+      prayerText: clearPrayerText ? null : prayerText ?? this.prayerText,
       sortOrder: sortOrder ?? this.sortOrder,
       isActive: isActive ?? this.isActive,
       vibrateEnabled: vibrateEnabled ?? this.vibrateEnabled,

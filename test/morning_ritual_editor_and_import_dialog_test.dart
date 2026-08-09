@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:twelvestepsapp/morning_ritual/models/morning_ritual_entry.dart';
 import 'package:twelvestepsapp/morning_ritual/models/ritual_item.dart';
+import 'package:twelvestepsapp/morning_ritual/pages/morning_ritual_definition_kind.dart';
 import 'package:twelvestepsapp/morning_ritual/pages/morning_ritual_settings_tab.dart';
 import 'package:twelvestepsapp/morning_ritual/services/morning_randomizer_source.dart';
 import 'package:twelvestepsapp/shared/pages/foreign_import_dialog.dart';
@@ -74,13 +75,75 @@ void main() {
 
   Box<RitualItem> items() => Hive.box<RitualItem>('morning_ritual_items');
 
+  Finder definitionKindField() => find.byWidgetPredicate(
+    (widget) => widget is DropdownButtonFormField<MorningRitualDefinitionKind>,
+  );
+
   Future<void> openEditor(WidgetTester tester, {String locale = 'en'}) async {
     await tester.pumpWidget(harness(const MorningRitualSettingsTab(), locale));
     await tester.pumpAndSettle();
     await act(tester, () => tester.tap(find.byIcon(Icons.edit).first));
   }
 
-  group('Just for Today toggle in the item editor', () {
+  Future<void> openAddEditor(
+    WidgetTester tester, {
+    String locale = 'en',
+  }) async {
+    final key = GlobalKey<MorningRitualSettingsTabState>();
+    await tester.pumpWidget(
+      harness(MorningRitualSettingsTab(key: key), locale),
+    );
+    await tester.pumpAndSettle();
+    key.currentState!.showAddItemDialog();
+    await tester.pumpAndSettle();
+  }
+
+  group('Just for Today item type', () {
+    testWidgets('is a direct choice and stores the portable representation', (
+      tester,
+    ) async {
+      await openAddEditor(tester);
+
+      await tester.tap(find.text('Timer').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Timer'), findsWidgets);
+      expect(find.text('Prayer'), findsOneWidget);
+      expect(find.text('Just for Today'), findsOneWidget);
+
+      await tester.tap(find.text('Just for Today').last);
+      await tester.pumpAndSettle();
+
+      final nameField = tester.widget<TextField>(find.byType(TextField).first);
+      expect(nameField.controller!.text, 'Just for Today');
+      expect(find.text('Prayer Text'), findsNothing);
+      expect(find.textContaining('Draws one of the ten'), findsOneWidget);
+
+      await act(tester, () => tester.tap(find.text('Add')));
+
+      final saved = items().values.single;
+      expect(saved.type, RitualItemType.prayer);
+      expect(saved.prayerText, isNull);
+      expect(
+        saved.randomizerSourceId,
+        MorningRandomizerContract.justForTodaySourceId,
+      );
+    });
+
+    testWidgets('keeps the English name in the Danish type menu', (
+      tester,
+    ) async {
+      await openAddEditor(tester, locale: 'da');
+
+      await tester.tap(find.text('Timer').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Timer'), findsWidgets);
+      expect(find.text('Bøn'), findsOneWidget);
+      expect(find.text('Just for Today'), findsOneWidget);
+    });
+  });
+
+  group('Just for Today editing', () {
     setUp(() async {
       await items().put(
         'prayer',
@@ -94,15 +157,18 @@ void main() {
       );
     });
 
-    testWidgets('turning it on stores the shared source id', (tester) async {
+    testWidgets('changing a prayer stores the source and clears fixed text', (
+      tester,
+    ) async {
       await openEditor(tester);
 
-      expect(find.text('Just for Today'), findsOneWidget);
-      // Off by default: the item keeps its own text field.
       expect(find.text('Prayer Text'), findsOneWidget);
 
-      await act(tester, () => tester.tap(find.byType(SwitchListTile)));
-      // A randomized reading has no fixed text of its own.
+      await tester.tap(definitionKindField());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Just for Today').last);
+      await tester.pumpAndSettle();
+
       expect(find.text('Prayer Text'), findsNothing);
 
       await act(tester, () => tester.tap(find.text('Update')));
@@ -112,9 +178,12 @@ void main() {
         MorningRandomizerContract.justForTodaySourceId,
       );
       expect(items().get('prayer')!.type, RitualItemType.prayer);
+      expect(items().get('prayer')!.prayerText, isNull);
     });
 
-    testWidgets('turning it back off clears the source id', (tester) async {
+    testWidgets('changing it back to prayer clears the source id', (
+      tester,
+    ) async {
       // Seeding writes to Hive, so it must leave the fake-async zone too.
       await tester.runAsync(
         () => items().put(
@@ -130,13 +199,17 @@ void main() {
       );
       await openEditor(tester);
 
-      await act(tester, () => tester.tap(find.byType(SwitchListTile)));
+      expect(find.text('Just for Today'), findsWidgets);
+      await tester.tap(definitionKindField());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Prayer').last);
+      await tester.pumpAndSettle();
       await act(tester, () => tester.tap(find.text('Update')));
 
       expect(items().get('prayer')!.randomizerSourceId, isNull);
     });
 
-    testWidgets('a second Just for Today item is refused', (tester) async {
+    testWidgets('a second Just for Today choice is disabled', (tester) async {
       // Emotional Sobriety rejects a backup carrying two of them.
       await tester.runAsync(
         () => items().put(
@@ -152,32 +225,21 @@ void main() {
       );
       await openEditor(tester);
 
-      await act(tester, () => tester.tap(find.byType(SwitchListTile)));
-      await act(tester, () => tester.tap(find.text('Update')));
-
       expect(
         find.text('Only one Just for Today item is supported.'),
         findsOneWidget,
       );
-      expect(items().get('prayer')!.randomizerSourceId, isNull);
-    });
-
-    testWidgets('the toggle is not offered for a timer', (tester) async {
-      await tester.runAsync(
-        () => items().put(
-          'prayer',
-          RitualItem(
-            id: 'prayer',
-            name: 'Meditation',
-            type: RitualItemType.timer,
-            durationSeconds: 300,
-            sortOrder: 0,
-          ),
-        ),
-      );
-      await openEditor(tester);
-
-      expect(find.text('Just for Today'), findsNothing);
+      await tester.tap(definitionKindField());
+      await tester.pumpAndSettle();
+      final choice = tester
+          .widget<DropdownMenuItem<MorningRitualDefinitionKind>>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is DropdownMenuItem<MorningRitualDefinitionKind> &&
+                  widget.value == MorningRitualDefinitionKind.justForToday,
+            ),
+          );
+      expect(choice.enabled, isFalse);
     });
 
     testWidgets('the Danish editor lays out without overflowing', (
@@ -185,21 +247,16 @@ void main() {
     ) async {
       await openEditor(tester, locale: 'da');
 
-      // The reading keeps its English name in Danish — it is the feature's
-      // name, not a phrase to translate.
-      expect(find.text('Just for Today'), findsOneWidget);
+      await tester.tap(definitionKindField());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Just for Today').last);
+      await tester.pumpAndSettle();
+
       expect(
         find.textContaining('Trækker én af de ti'),
         findsOneWidget,
         reason: 'the Danish help text must be the Danish one',
       );
-      // Two text fields with the toggle off: the name and the prayer text.
-      // (Danish labels the prayer *type* and the prayer *text* both "Bøn", so
-      // matching on that string cannot tell them apart — count the fields.)
-      expect(find.byType(TextField), findsNWidgets(2));
-
-      // Reaching here without a RenderFlex overflow is the layout assertion.
-      await act(tester, () => tester.tap(find.byType(SwitchListTile)));
       expect(
         find.byType(TextField),
         findsOneWidget,

@@ -6,6 +6,20 @@ its `<en-GB>` and `<da-DK>` bodies verbatim into Google Play / TestFlight. Keep
 each locale ≤ 500 characters (Play's limit). The version on the `X.Y.Z - DATE:`
 line must match `pubspec.yaml`.
 
+2.3.6 - 2026-08-09:
+<en-GB>
+- "Just for Today" is now a direct choice when adding or editing a morning
+  ritual item. Choose it once and the ritual shows one of the ten readings each
+  morning.
+- Backups remain compatible with Emotional Sobriety.
+</en-GB>
+<da-DK>
+- "Just for Today" kan nu vælges direkte, når du tilføjer eller retter et
+  element i morgenritualet. Vælg det én gang, så viser ritualet én af de ti
+  læsninger hver morgen.
+- Sikkerhedskopier er fortsat kompatible med Emotional Sobriety.
+</da-DK>
+
 2.3.5 - 2026-08-07:
 <en-GB>
 - The in-app help now describes what each tool actually does: the four inventory

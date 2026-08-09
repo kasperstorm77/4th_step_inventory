@@ -53,6 +53,9 @@ days saved as `MorningRitualEntry`. See
   *missing* draw is made. A source ID must be non-blank and `prayer`-only;
   changing such a definition to `timer` clears it. An unknown source ID is
   preserved and falls back to `prayerText`.
+- **The editor's third kind is presentation-only.** Show Timer, Prayer and
+  `Just for Today`, but persist the last one as `prayer=1` plus
+  `randomizerSourceId: just_for_today`. Never add it to `RitualItemType`.
 - **Two definition-set invariants the other app enforces on the whole file:**
   at most **one** `randomizerSourceId` item, and `sortOrder` unique and
   **contiguous from zero** across *all* definitions. A gap makes Emotional

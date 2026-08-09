@@ -115,6 +115,9 @@ the contract. When a shared model changes here:
 - keep Morning `sortOrder` unique and contiguous from zero, and at most one
   `randomizerSourceId` item — the other app refuses the **whole file**
   otherwise;
+- keep Just for Today as a presentation-only third editor choice and serialize
+  it as `prayer=1` plus `randomizerSourceId: just_for_today`; the current
+  behavior is owned by [architecture.md §1.3](./architecture.md#13-morning-ritual-libmorning_ritual);
 - keep the ten `just_for_today` option IDs and their text identical to that
   app's Workshop catalog. **Never hand-edit
   `assets/content/morning_randomizer_v1.json`** — regenerate it with
