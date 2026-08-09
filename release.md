@@ -6,6 +6,20 @@ its `<en-GB>` and `<da-DK>` bodies verbatim into Google Play / TestFlight. Keep
 each locale ≤ 500 characters (Play's limit). The version on the `X.Y.Z - DATE:`
 line must match `pubspec.yaml`.
 
+2.3.7 - 2026-08-09:
+<en-GB>
+- Backups now record which app created them, preventing a backup from another
+  app from being restored as a complete 12 Steps App backup.
+- A confirmed manual import from Emotional Sobriety replaces only shared
+  recovery data and keeps data that belongs only to 12 Steps App.
+</en-GB>
+<da-DK>
+- Sikkerhedskopier registrerer nu, hvilken app der oprettede dem, så en kopi fra
+  en anden app ikke gendannes som en fuld sikkerhedskopi fra 12 Steps App.
+- En bekræftet manuel import fra Emotional Sobriety erstatter kun delte
+  recoverydata og bevarer data, der kun findes i 12 Steps App.
+</da-DK>
+
 2.3.6 - 2026-08-09:
 <en-GB>
 - "Just for Today" is now a direct choice when adding or editing a morning

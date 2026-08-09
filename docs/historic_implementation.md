@@ -881,6 +881,14 @@ passed, then Emotional Sobriety's current `BackupValidator` rejected the
 labelled export with `FormatException: Unsupported backup product or version`,
 which is the exact peer gap recorded as P5.18.
 
+The owner explicitly authorized release `2.3.7+115` to Play alpha and
+TestFlight despite that known peer gap, and separately prohibited every
+operation on the Emotional Sobriety repository. The release therefore uses the
+complete Twelve Steps-only gate (`flutter analyze` and `flutter test`) and does
+not invoke the cross-app script, because doing so would operate on the prohibited
+sibling checkout. This is a one-release scope exception, not evidence that the
+bidirectional contract is green and not a relaxation of the standing gate.
+
 ---
 
 ## Data-format migration notes
