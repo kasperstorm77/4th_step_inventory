@@ -19,6 +19,7 @@ import '../../notifications/services/notifications_service.dart';
 import 'app_settings_service.dart';
 import 'data_refresh_service.dart';
 import 'local_backup_service.dart';
+import 'sync_payload_builder.dart';
 
 // --------------------------------------------------------------------------
 // Backup Restore Service - Unified Import/Restore Logic
@@ -67,6 +68,17 @@ class RestoreResult {
   String toString() =>
       'RestoreResult(success: $success, error: $error, counts: $counts)';
 }
+
+/// The application identity proven by a backup envelope.
+enum BackupOrigin {
+  twelveSteps,
+  legacyTwelveSteps,
+  emotionalSobriety,
+  unsupported,
+}
+
+/// The user flow requesting a restore.
+enum RestoreIntent { nativeRestore, manualJsonImport }
 
 /// What a foreign (other-product) payload would bring in, so the confirmation
 /// dialog can name exactly which datasets are replaced before anything is
@@ -194,13 +206,24 @@ class BackupRestoreService {
   // sections mean the same thing here; the rest (Workshop progress, the Morning
   // draft, its own settings) have no home and are ignored.
   //
-  // This app never writes a `product` key, so its own backups are, and stay,
-  // "not foreign". Importing another product is an explicit user choice on the
-  // manual JSON path only — the automatic Drive path passes
-  // `allowForeignProduct: false`, which keeps `isRemoteNewer()` unable to act
-  // on someone else's file (hard rule 8).
+  // Current backups identify this app as `twelve-steps`. Product-less files
+  // remain supported only when an app-specific historical section proves they
+  // are legacy Twelve Steps data. Importing another product is an explicit
+  // manual JSON action; automatic Drive/local restore keeps the default native
+  // intent and cannot enter the compatibility path.
 
+  static const twelveStepsProductId = SyncPayloadBuilder.productId;
   static const emotionalSobrietyProductId = 'emotional-sobriety';
+  static const emotionalSobrietySchemaVersion = '1.0';
+
+  static const _legacyNativeFingerprintKeys = <String>{
+    'people',
+    'reflections',
+    'gratitude',
+    'gratitudeEntries',
+    'notifications',
+    'appSettings',
+  };
 
   /// Foreign sections mapped onto this app's canonical keys.
   static const _emotionalSobrietySectionMap = <String, String>{
@@ -218,17 +241,51 @@ class BackupRestoreService {
     'emotionalSobrietySettings',
   ];
 
-  /// The `product` tag of [data], or null when the payload is this app's own.
-  static String? foreignProductOf(Map<String, dynamic> data) {
-    final product = data['product'];
-    if (product is! String || product.trim().isEmpty) return null;
-    return product.trim();
+  /// Classify the payload from positive origin evidence.
+  ///
+  /// New backups require an exact product and version. Product-less data is
+  /// native only when it carries a section that historical Twelve Steps
+  /// backups emitted and Emotional Sobriety does not own.
+  static BackupOrigin originOf(Map<String, dynamic> data) {
+    if (data.containsKey('product')) {
+      final product = data['product'];
+      final version = data['version'];
+      if (product == twelveStepsProductId &&
+          version == SyncPayloadBuilder.schemaVersion) {
+        return BackupOrigin.twelveSteps;
+      }
+      if (product == emotionalSobrietyProductId &&
+          version == emotionalSobrietySchemaVersion) {
+        return BackupOrigin.emotionalSobriety;
+      }
+      return BackupOrigin.unsupported;
+    }
+    if (_legacyNativeFingerprintKeys.any(data.containsKey)) {
+      return BackupOrigin.legacyTwelveSteps;
+    }
+    return BackupOrigin.unsupported;
   }
 
   /// True when [data] is a payload this app can import via the manual path
   /// after the user confirms.
   static bool isSupportedForeignPayload(Map<String, dynamic> data) =>
-      foreignProductOf(data) == emotionalSobrietyProductId;
+      validateEmotionalSobrietyPayload(data).isValid;
+
+  /// Validate the exact Emotional Sobriety compatibility envelope.
+  static ValidationResult validateEmotionalSobrietyPayload(
+    Map<String, dynamic> data,
+  ) {
+    final errors = <String>[];
+    if (originOf(data) != BackupOrigin.emotionalSobriety) {
+      errors.add('Unsupported Emotional Sobriety product or version');
+    }
+    for (final key in _emotionalSobrietySectionMap.keys) {
+      if (data[key] is! List) {
+        errors.add('$key must be a list');
+      }
+    }
+    return ValidationResult(isValid: errors.isEmpty, errors: errors);
+  }
 
   /// Describe a foreign payload without touching any box, so the confirmation
   /// dialog can name exactly what will be replaced. Returns null when [data]
@@ -267,7 +324,7 @@ class BackupRestoreService {
     final translated = <String, dynamic>{
       // The restore path validates against this app's schema; the foreign
       // version is reported separately by [describeForeignPayload].
-      'version': '8.0',
+      'version': SyncPayloadBuilder.schemaVersion,
     };
     for (final entry in _emotionalSobrietySectionMap.entries) {
       final value = data[entry.key];
@@ -377,27 +434,47 @@ class BackupRestoreService {
   static Future<RestoreResult> restoreFromPayload(
     Map<String, dynamic> data, {
     bool createSafetyBackup = true,
-    bool allowForeignProduct = false,
+    RestoreIntent intent = RestoreIntent.nativeRestore,
+    void Function()? scheduleCanonicalBackup,
   }) async {
-    // Step 0: Foreign payloads are accepted only where the user explicitly
-    // chose the file. The automatic Drive path never sets the flag.
-    final foreignProduct = foreignProductOf(data);
-    if (foreignProduct != null) {
-      if (!allowForeignProduct) {
+    // Step 0: Establish application origin and restore scope before validation,
+    // safety backup creation, or box access.
+    final origin = originOf(data);
+    switch (origin) {
+      case BackupOrigin.twelveSteps:
+      case BackupOrigin.legacyTwelveSteps:
+        break;
+      case BackupOrigin.emotionalSobriety:
+        if (intent != RestoreIntent.manualJsonImport) {
+          return const RestoreResult(
+            success: false,
+            error:
+                'Emotional Sobriety data requires explicit manual JSON import',
+          );
+        }
+        if (scheduleCanonicalBackup == null) {
+          return const RestoreResult(
+            success: false,
+            error: 'Compatibility import requires canonical backup scheduling',
+          );
+        }
+        final foreignValidation = validateEmotionalSobrietyPayload(data);
+        if (!foreignValidation.isValid) {
+          return RestoreResult(
+            success: false,
+            error: 'Validation failed: ${foreignValidation.errors.join(', ')}',
+          );
+        }
+        data = translateEmotionalSobrietyPayload(data);
+        break;
+      case BackupOrigin.unsupported:
+        final product = data['product'];
         return RestoreResult(
           success: false,
-          error:
-              'Backup belongs to another app ($foreignProduct); '
-              'import it explicitly from a JSON file',
+          error: data.containsKey('product')
+              ? 'Unsupported backup product: $product'
+              : 'Unsupported or ambiguous backup origin',
         );
-      }
-      if (foreignProduct != emotionalSobrietyProductId) {
-        return RestoreResult(
-          success: false,
-          error: 'Unsupported backup product: $foreignProduct',
-        );
-      }
-      data = translateEmotionalSobrietyPayload(data);
     }
 
     // Step 1: Validate
@@ -452,6 +529,23 @@ class BackupRestoreService {
         }
       }
 
+      // Step 6: A compatibility import is now committed. Queue a fresh backup
+      // from the boxes so it carries this app's origin and combines the five
+      // imported sections with every Twelve Steps-only section left intact.
+      if (origin == BackupOrigin.emotionalSobriety) {
+        try {
+          scheduleCanonicalBackup!();
+        } catch (e) {
+          // Scheduling happens after the data commit. A scheduler outage must
+          // not report the successfully restored data as rolled back.
+          if (kDebugMode) {
+            print(
+              'BackupRestoreService: Canonical backup scheduling failed: $e',
+            );
+          }
+        }
+      }
+
       return RestoreResult(success: true, counts: counts);
     } catch (e) {
       if (kDebugMode) print('BackupRestoreService: Restore failed: $e');
@@ -463,7 +557,8 @@ class BackupRestoreService {
   static Future<RestoreResult> restoreFromJsonString(
     String content, {
     bool createSafetyBackup = true,
-    bool allowForeignProduct = false,
+    RestoreIntent intent = RestoreIntent.nativeRestore,
+    void Function()? scheduleCanonicalBackup,
   }) async {
     final data = parseJson(content);
     if (data == null) {
@@ -475,7 +570,8 @@ class BackupRestoreService {
     return restoreFromPayload(
       data,
       createSafetyBackup: createSafetyBackup,
-      allowForeignProduct: allowForeignProduct,
+      intent: intent,
+      scheduleCanonicalBackup: scheduleCanonicalBackup,
     );
   }
 

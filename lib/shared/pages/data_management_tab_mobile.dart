@@ -1059,11 +1059,17 @@ class _DataManagementTabState extends State<DataManagementTab> {
         return;
       }
 
-      // A file from another app is a separate, explicit decision: name the
-      // datasets it will replace before anything is written.
-      var allowForeignProduct = false;
-      final foreignProduct = BackupRestoreService.foreignProductOf(payload);
-      if (foreignProduct != null) {
+      // Classify before touching any box. Compatibility is available only for
+      // a supported Emotional Sobriety file selected in this manual flow.
+      final origin = BackupRestoreService.originOf(payload);
+      if (origin == BackupOrigin.unsupported) {
+        if (!mounted) return;
+        messenger.showSnackBar(
+          SnackBar(content: Text(t(context, 'import_foreign_unsupported'))),
+        );
+        return;
+      }
+      if (origin == BackupOrigin.emotionalSobriety) {
         final summary = BackupRestoreService.describeForeignPayload(payload);
         if (summary == null) {
           if (!mounted) return;
@@ -1074,14 +1080,15 @@ class _DataManagementTabState extends State<DataManagementTab> {
         }
         if (!mounted) return;
         if (!await confirmForeignImport(context, summary)) return;
-        allowForeignProduct = true;
       }
 
       // Use centralized BackupRestoreService for consistent restore behavior
       final restoreResult = await BackupRestoreService.restoreFromPayload(
         payload,
         createSafetyBackup: true, // Always create safety backup before restore
-        allowForeignProduct: allowForeignProduct,
+        intent: RestoreIntent.manualJsonImport,
+        scheduleCanonicalBackup: () =>
+            AllAppsDriveService.instance.scheduleUploadFromBox(),
       );
 
       if (!mounted) return;
@@ -1128,7 +1135,12 @@ class _DataManagementTabState extends State<DataManagementTab> {
           );
         }
 
-        if (_syncEnabled && AllAppsDriveService.instance.isAuthenticated) {
+        // Compatibility imports schedule their rebuilt native backup inside
+        // BackupRestoreService after commit. Keep the existing upload behavior
+        // for this app's own manually imported files without double-scheduling.
+        if (origin != BackupOrigin.emotionalSobriety &&
+            _syncEnabled &&
+            AllAppsDriveService.instance.isAuthenticated) {
           _uploadToDrive();
         }
       } else {

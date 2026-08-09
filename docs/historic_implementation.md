@@ -852,6 +852,35 @@ exactly (`en-GB` and Apple's `da` locale), and confirmed that the internal
 `Internal Testing` group has access to all builds. No public App Store version
 was submitted for review; that remains a separate owner action.
 
+## Phase 25 — Backup origin identity and scoped cross-app restore
+
+New JSON exports, local backups, safety backups, and Drive backups now identify
+their writer with `product: twelve-steps` while retaining schema `8.0`.
+`BackupRestoreService` classifies the envelope before safety-backup creation or
+Hive access: exact current files restore natively, product-less historical
+files require a Twelve Steps-only fingerprint, and ambiguous, malformed, or
+unknown origins fail closed. This preserves backward compatibility without
+mistaking a shared-only compatibility document for a real native restore.
+
+The exact `emotional-sobriety` / `1.0` envelope is accepted only through a
+confirmed manual JSON import. Its five shared sections replace their native
+counterparts; people, reflections, gratitude, notifications, and app settings
+remain untouched. After commit, the existing scheduler rebuilds one canonical
+Twelve Steps backup from Hive, combining imported shared records with retained
+native records under the correct origin marker. Automatic Drive/local restore
+never enters that scope. Regression coverage pins classifier edge cases,
+strict foreign shape/version validation, non-mutation on rejection, retained
+native data, exact-once scheduling, and scheduler-failure isolation.
+
+The sibling Emotional Sobriety application is prerelease and intentionally
+gets no product-less compatibility exception. Its matching strict gate is
+recorded there as a release blocker; until it lands, the mandatory live
+bidirectional cross-app script must fail rather than be weakened. The gate was
+run after this implementation: this app's import direction and live export
+passed, then Emotional Sobriety's current `BackupValidator` rejected the
+labelled export with `FormatException: Unsupported backup product or version`,
+which is the exact peer gap recorded as P5.18.
+
 ---
 
 ## Data-format migration notes

@@ -181,8 +181,8 @@ void main() {
 
     // Guard the invariants the other app enforces on the whole file, so a
     // failure here names the cause instead of surfacing as "invalid backup".
+    expect(payload['product'], 'twelve-steps');
     expect(payload['version'], '8.0');
-    expect(payload.containsKey('product'), isFalse);
     final ritualItems = (payload['morningRitualItems'] as List)
         .cast<Map<String, dynamic>>();
     final orders = ritualItems.map((i) => i['sortOrder'] as int).toList()

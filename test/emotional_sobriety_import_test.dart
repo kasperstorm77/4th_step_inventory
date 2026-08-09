@@ -55,19 +55,66 @@ void main() {
   });
 
   group('recognising a foreign payload', () {
-    test('this app\'s own payload is never foreign', () {
-      expect(
-        BackupRestoreService.foreignProductOf(<String, dynamic>{
-          'version': '8.0',
-          'entries': <dynamic>[],
-        }),
-        isNull,
-      );
-      expect(
-        SyncPayloadBuilder.buildPayload().containsKey('product'),
-        isFalse,
-        reason: 'writing a product tag would make our own backups foreign',
-      );
+    test('this app\'s own payload carries its stable product origin', () {
+      final payload = SyncPayloadBuilder.buildPayload();
+
+      expect(payload['product'], 'twelve-steps');
+      expect(payload['version'], '8.0');
+    });
+
+    test('origin classification requires positive product evidence', () {
+      final cases = <(Map<String, dynamic>, BackupOrigin)>[
+        (
+          <String, dynamic>{
+            'product': 'twelve-steps',
+            'version': '8.0',
+            'entries': <dynamic>[],
+          },
+          BackupOrigin.twelveSteps,
+        ),
+        (
+          <String, dynamic>{'version': '7.0', 'gratitudeEntries': <dynamic>[]},
+          BackupOrigin.legacyTwelveSteps,
+        ),
+        (_fixture(), BackupOrigin.emotionalSobriety),
+        (
+          <String, dynamic>{
+            'version': '8.0',
+            'entries': <dynamic>[],
+            'morningRitualItems': <dynamic>[],
+          },
+          BackupOrigin.unsupported,
+        ),
+        (
+          <String, dynamic>{
+            'product': 'twelve-steps',
+            'version': '7.0',
+            'gratitude': <dynamic>[],
+          },
+          BackupOrigin.unsupported,
+        ),
+        (
+          <String, dynamic>{..._fixture(), 'version': '2.0'},
+          BackupOrigin.unsupported,
+        ),
+        for (final product in <Object?>['', ' ', 12, 'some-other-app'])
+          (
+            <String, dynamic>{
+              'product': product,
+              'version': '8.0',
+              'gratitude': <dynamic>[],
+            },
+            BackupOrigin.unsupported,
+          ),
+      ];
+
+      for (final (payload, expected) in cases) {
+        expect(
+          BackupRestoreService.originOf(payload),
+          expected,
+          reason: 'unexpected origin for ${payload['product']}',
+        );
+      }
     });
 
     test('the captured file is tagged emotional-sobriety 1.0', () {
@@ -106,7 +153,8 @@ void main() {
       final result = await BackupRestoreService.restoreFromPayload(
         data,
         createSafetyBackup: false,
-        allowForeignProduct: true,
+        intent: RestoreIntent.manualJsonImport,
+        scheduleCanonicalBackup: () {},
       );
       expect(result.success, isFalse);
       expect(result.error, contains('some-other-app'));
@@ -126,17 +174,193 @@ void main() {
       ),
     );
 
-    // No allowForeignProduct flag: this is what a Drive restore does.
+    // Default native intent is what a Drive restore uses.
     final result = await BackupRestoreService.restoreFromPayload(
       _fixture(),
       createSafetyBackup: false,
     );
 
     expect(result.success, isFalse);
-    expect(result.error, contains('another app'));
+    expect(result.error, contains('manual JSON import'));
     // Nothing was touched.
     expect(pairs.length, 1);
     expect(pairs.get('local')!.barrier, 'Local barrier');
+  });
+
+  test(
+    'ambiguous product-less shared data cannot enter native restore',
+    () async {
+      final gratitude = Hive.box<GratitudeEntry>('gratitude_box');
+      await gratitude.add(
+        GratitudeEntry(
+          gratitudeTowards: 'Local person',
+          gratefulFor: 'Local history',
+          date: DateTime(2026, 8, 5),
+          createdAt: DateTime(2026, 8, 5, 20),
+        ),
+      );
+
+      final result = await BackupRestoreService.restoreFromPayload(
+        <String, dynamic>{
+          'version': '8.0',
+          'entries': <dynamic>[],
+          'morningRitualItems': <dynamic>[],
+        },
+        createSafetyBackup: false,
+      );
+
+      expect(result.success, isFalse);
+      expect(result.error, contains('origin'));
+      expect(gratitude.length, 1);
+    },
+  );
+
+  test('blank and non-string product markers fail closed', () async {
+    final gratitude = Hive.box<GratitudeEntry>('gratitude_box');
+    await gratitude.add(
+      GratitudeEntry(
+        gratitudeTowards: 'Keep',
+        gratefulFor: 'This record',
+        date: DateTime(2026, 8, 5),
+        createdAt: DateTime(2026, 8, 5, 20),
+      ),
+    );
+
+    for (final product in <Object?>['', ' ', 12]) {
+      final result = await BackupRestoreService.restoreFromPayload(
+        <String, dynamic>{
+          'product': product,
+          'version': '8.0',
+          'gratitude': <dynamic>[],
+        },
+        createSafetyBackup: false,
+      );
+      expect(result.success, isFalse, reason: 'accepted product $product');
+      expect(gratitude.length, 1);
+    }
+  });
+
+  test('foreign version and required shared sections are strict', () async {
+    final wrongVersion = _fixture()..['version'] = '2.0';
+    final wrongVersionResult = await BackupRestoreService.restoreFromPayload(
+      wrongVersion,
+      createSafetyBackup: false,
+      intent: RestoreIntent.manualJsonImport,
+      scheduleCanonicalBackup: () {},
+    );
+    expect(wrongVersionResult.success, isFalse);
+
+    for (final key in const <String>[
+      'iAmDefinitions',
+      'entries',
+      'agnosticismPairs',
+      'morningRitualItems',
+      'morningRitualEntries',
+    ]) {
+      final missing = _fixture()..remove(key);
+      final missingResult = await BackupRestoreService.restoreFromPayload(
+        missing,
+        createSafetyBackup: false,
+        intent: RestoreIntent.manualJsonImport,
+        scheduleCanonicalBackup: () {},
+      );
+      expect(missingResult.success, isFalse, reason: 'accepted missing $key');
+
+      final malformed = _fixture()..[key] = <String, dynamic>{};
+      final malformedResult = await BackupRestoreService.restoreFromPayload(
+        malformed,
+        createSafetyBackup: false,
+        intent: RestoreIntent.manualJsonImport,
+        scheduleCanonicalBackup: () {},
+      );
+      expect(
+        malformedResult.success,
+        isFalse,
+        reason: 'accepted malformed $key',
+      );
+    }
+  });
+
+  group('canonical backup scheduling', () {
+    test(
+      'a compatibility commit schedules one rebuilt Twelve Steps backup',
+      () async {
+        final gratitude = Hive.box<GratitudeEntry>('gratitude_box');
+        await gratitude.add(
+          GratitudeEntry(
+            gratitudeTowards: 'Local person',
+            gratefulFor: 'Retained local history',
+            date: DateTime(2026, 8, 5),
+            createdAt: DateTime(2026, 8, 5, 20),
+          ),
+        );
+        var schedules = 0;
+        Map<String, dynamic>? scheduledPayload;
+
+        final result = await BackupRestoreService.restoreFromPayload(
+          _fixture(),
+          createSafetyBackup: false,
+          intent: RestoreIntent.manualJsonImport,
+          scheduleCanonicalBackup: () {
+            schedules += 1;
+            scheduledPayload = SyncPayloadBuilder.buildPayload();
+          },
+        );
+
+        expect(result.success, isTrue, reason: result.error);
+        expect(schedules, 1);
+        expect(scheduledPayload?['product'], 'twelve-steps');
+        expect(scheduledPayload?['version'], '8.0');
+        expect(scheduledPayload?['entries'], hasLength(1));
+        expect(scheduledPayload?['gratitude'], hasLength(1));
+      },
+    );
+
+    test(
+      'failed and native restores do not schedule compatibility backup',
+      () async {
+        var schedules = 0;
+        final malformed = _fixture()..remove('morningRitualEntries');
+
+        final failedResult = await BackupRestoreService.restoreFromPayload(
+          malformed,
+          createSafetyBackup: false,
+          intent: RestoreIntent.manualJsonImport,
+          scheduleCanonicalBackup: () => schedules += 1,
+        );
+        final nativeResult = await BackupRestoreService.restoreFromPayload(
+          <String, dynamic>{
+            'product': 'twelve-steps',
+            'version': '8.0',
+            'entries': <dynamic>[],
+          },
+          createSafetyBackup: false,
+          scheduleCanonicalBackup: () => schedules += 1,
+        );
+
+        expect(failedResult.success, isFalse);
+        expect(nativeResult.success, isTrue, reason: nativeResult.error);
+        expect(schedules, 0);
+      },
+    );
+
+    test('a scheduler failure does not undo a committed import', () async {
+      var schedulerWasCalled = false;
+
+      final result = await BackupRestoreService.restoreFromPayload(
+        _fixture(),
+        createSafetyBackup: false,
+        intent: RestoreIntent.manualJsonImport,
+        scheduleCanonicalBackup: () {
+          schedulerWasCalled = true;
+          throw StateError('scheduler unavailable');
+        },
+      );
+
+      expect(schedulerWasCalled, isTrue);
+      expect(result.success, isTrue, reason: result.error);
+      expect(Hive.box<InventoryEntry>('entries'), hasLength(1));
+    });
   });
 
   group('importing the captured file', () {
@@ -144,7 +368,8 @@ void main() {
         BackupRestoreService.restoreFromPayload(
           _fixture(),
           createSafetyBackup: false,
-          allowForeignProduct: true,
+          intent: RestoreIntent.manualJsonImport,
+          scheduleCanonicalBackup: () {},
         );
 
     test('the five shared datasets arrive intact', () async {
@@ -283,7 +508,8 @@ void main() {
       final result = await BackupRestoreService.restoreFromPayload(
         data,
         createSafetyBackup: false,
-        allowForeignProduct: true,
+        intent: RestoreIntent.manualJsonImport,
+        scheduleCanonicalBackup: () {},
       );
       expect(result.success, isTrue, reason: result.error);
 
@@ -321,7 +547,8 @@ void main() {
       final result = await BackupRestoreService.restoreFromPayload(
         data,
         createSafetyBackup: false,
-        allowForeignProduct: true,
+        intent: RestoreIntent.manualJsonImport,
+        scheduleCanonicalBackup: () {},
       );
       expect(result.success, isTrue, reason: result.error);
 
@@ -429,7 +656,8 @@ void main() {
         final result = await BackupRestoreService.restoreFromPayload(
           data,
           createSafetyBackup: false,
-          allowForeignProduct: true,
+          intent: RestoreIntent.manualJsonImport,
+          scheduleCanonicalBackup: () {},
         );
 
         expect(result.success, isTrue, reason: result.error);

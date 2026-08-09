@@ -212,6 +212,7 @@ void main() {
       final result = await BackupRestoreService.restoreFromPayload(
         <String, dynamic>{
           'version': '8.0',
+          'people': <dynamic>[],
           'morningRitualItems': <Map<String, dynamic>>[
             <String, dynamic>{
               'id': 'retreat-v1-just-for-today',

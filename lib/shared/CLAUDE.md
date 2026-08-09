@@ -6,7 +6,8 @@ backup, restore, app switching, settings, localization, help. See
 
 ## Single sources of truth — don't fork them
 - **Export:** [`sync_payload_builder.dart`](services/sync_payload_builder.dart)
-  (`schemaVersion '8.0'`) is the only place the payload is built. It
+  (`productId 'twelve-steps'`, `schemaVersion '8.0'`) is the only place the
+  payload is built. It
   reads **every** box unguarded — keep its box list in sync with
   `main.dart`'s open set.
 - **Import/restore:** [`backup_restore_service.dart`](services/backup_restore_service.dart)
@@ -27,16 +28,21 @@ payload from `SyncPayloadBuilder` and runs it through Emotional Sobriety's own
 model is exactly what it exists to catch.
 
 ## Importing another product's backup
-- This app **never writes a `product` key**; a payload that has one is
-  foreign. `emotional-sobriety` `1.0` is the only supported foreign
-  product — five sections map on, the rest are ignored without error.
-- Accepted **only** with `allowForeignProduct: true`, which only the
-  manual JSON path passes, behind `confirmForeignImport` naming every
-  dataset and count. The Drive path must never pass it — that is what
-  keeps hard rule 8 true for someone else's file.
+- New files must carry exact origin and schema markers. Current native is
+  `twelve-steps` `8.0`; `emotional-sobriety` `1.0` is the only compatibility
+  origin. A product-less file is legacy native only when it contains a
+  Twelve Steps-only fingerprint; shared-only product-less JSON is ambiguous
+  and must fail closed.
+- Compatibility is accepted **only** with
+  `RestoreIntent.manualJsonImport`, behind `confirmForeignImport` naming every
+  dataset and count, and with a canonical-backup scheduler. Drive, local, and
+  startup restore paths keep `RestoreIntent.nativeRestore`.
 - Sections the other product lacks stay **absent** from the translated
   payload, not empty, so importing it keeps this device's gratitude,
   amends, reflections and reminders.
+- After the five shared sections commit, schedule through
+  `AllAppsDriveService.scheduleUploadFromBox()` so the next backup is rebuilt
+  from Hive with `product: twelve-steps` plus all retained native sections.
 - Normalize, don't reject: pairs beyond the five-active cap are
   **archived**, a second randomized reading loses only its source ID.
 

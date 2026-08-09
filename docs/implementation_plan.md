@@ -129,6 +129,22 @@ them with hand-written payloads — the last cross-app defect survived both test
 suites precisely because every fixture on both sides was hand-authored with
 values no device produces.
 
+**Origin and restore-scope gate (implemented here 2026-08-09):** New Twelve
+Steps payloads carry `product: twelve-steps`. Native restore accepts that exact
+`8.0` envelope, plus product-less historical files only when a Twelve
+Steps-only section proves their origin. A manually confirmed exact
+`emotional-sobriety` / `1.0` file replaces only the five shared sections and
+then schedules a new canonical Twelve Steps backup from Hive; ambiguous or
+unsupported origins fail before safety backup or mutation.
+
+- [x] Implement and regression-test the strict Twelve Steps gate with legacy
+      backward compatibility.
+- [ ] **Release blocker:** implement the matching strict app-specific gate in
+      Emotional Sobriety, update its live-output fixture/validator/docs, and
+      restore a green `bash scripts/verify-cross-app-recovery.sh`. That app is
+      prerelease: it must reject product-less Twelve Steps payloads rather than
+      carrying this app's legacy exception across.
+
 ---
 
 ## P3 — Engineering polish

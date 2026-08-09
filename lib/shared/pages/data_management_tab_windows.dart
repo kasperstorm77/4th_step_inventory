@@ -806,10 +806,17 @@ class _DataManagementTabState extends State<DataManagementTab> {
       final jsonString = await file.readAsString();
       final data = jsonDecode(jsonString) as Map<String, dynamic>;
 
-      // A file from another app is a separate, explicit decision: name the
-      // datasets it will replace before anything is written.
-      var allowForeignProduct = false;
-      if (BackupRestoreService.foreignProductOf(data) != null) {
+      // Classify before touching any box. Compatibility is available only for
+      // a supported Emotional Sobriety file selected in this manual flow.
+      final origin = BackupRestoreService.originOf(data);
+      if (origin == BackupOrigin.unsupported) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t(context, 'import_foreign_unsupported'))),
+        );
+        return;
+      }
+      if (origin == BackupOrigin.emotionalSobriety) {
         final summary = BackupRestoreService.describeForeignPayload(data);
         if (!mounted) return;
         if (summary == null) {
@@ -819,12 +826,13 @@ class _DataManagementTabState extends State<DataManagementTab> {
           return;
         }
         if (!await confirmForeignImport(context, summary)) return;
-        allowForeignProduct = true;
       }
 
       final restoreResult = await _importData(
         data,
-        allowForeignProduct: allowForeignProduct,
+        intent: RestoreIntent.manualJsonImport,
+        scheduleCanonicalBackup: () =>
+            AllAppsDriveService.instance.scheduleUploadFromBox(),
       );
 
       if (!mounted) return;
@@ -893,14 +901,15 @@ class _DataManagementTabState extends State<DataManagementTab> {
   /// Returns the RestoreResult with counts and success status.
   Future<RestoreResult> _importData(
     Map<String, dynamic> data, {
-    bool allowForeignProduct = false,
+    RestoreIntent intent = RestoreIntent.nativeRestore,
+    void Function()? scheduleCanonicalBackup,
   }) async {
     // Use centralized BackupRestoreService for consistent restore behavior
     return await BackupRestoreService.restoreFromPayload(
       data,
       createSafetyBackup: true, // Always create safety backup before restore
-      // Only the manual JSON path may pass true; Drive restores never do.
-      allowForeignProduct: allowForeignProduct,
+      intent: intent,
+      scheduleCanonicalBackup: scheduleCanonicalBackup,
     );
   }
 

@@ -282,6 +282,7 @@ Frozen top-level JSON keys:
 
 ```json
 {
+  "product": "twelve-steps",
   "version": "8.0",
   "exportDate": "2025-12-03T14:30:15.123Z",
   "lastModified": "2025-12-03T14:30:15.123Z",
@@ -304,6 +305,14 @@ Frozen top-level JSON keys:
   }
 }
 ```
+
+`product` is a stable application identifier, independent of the store title
+or bundle/package identifiers. A current native restore requires the exact
+`twelve-steps` / `8.0` envelope. Product-less historical backups remain
+readable only when at least one Twelve Steps-only key proves their origin:
+`people`, `reflections`, `gratitude`, `gratitudeEntries`, `notifications`, or
+`appSettings`. A product-less document containing only the five shared
+sections is ambiguous and is rejected before a safety backup or box mutation.
 
 **Cross-app sections:** `iAmDefinitions`, `entries`, `agnosticism`,
 `morningRitualItems` and `morningRitualEntries` are shared with Emotional
@@ -443,8 +452,9 @@ applied.
 ### 3.6.1 Importing an Emotional Sobriety backup
 Emotional Sobriety writes a **different envelope**, not a newer version of
 this one: it tags itself `"product": "emotional-sobriety"`, `"version":
-"1.0"`, and names its agnosticism section `agnosticismPairs`. This app
-never writes a `product` key, so its own backups are never "foreign".
+"1.0"`, and names its agnosticism section `agnosticismPairs`. Twelve Steps
+writes `"product": "twelve-steps"`, so both origin and restore scope are
+decided from positive evidence.
 
 Five sections map onto this app's keys — `iAmDefinitions`, `entries`,
 `agnosticismPairs` → `agnosticism`, `morningRitualItems`,
@@ -456,13 +466,22 @@ importing one adds its five datasets and keeps everything else on the
 device.
 
 The import is accepted **only on the manual JSON path**, behind
-`restoreFromPayload(..., allowForeignProduct: true)` and a confirmation
-dialog that names each dataset and its record count before anything is
-written. The automatic Drive path never sets the flag, so `isRemoteNewer()`
-can never act on another product's file (§3.3). Imported sets are then
-normalized to this app's rules: active pairs beyond the cap of five are
-**archived, never dropped**, and a second randomized reading loses only its
-source ID and stays an ordinary prayer.
+`RestoreIntent.manualJsonImport` and a confirmation dialog that names each
+dataset and its record count before anything is written. All five shared
+sections must be present as lists. Automatic Drive, local-backup, startup, and
+other native restore paths keep `RestoreIntent.nativeRestore`, so they reject
+the foreign envelope before safety-backup creation or mutation (§3.3).
+Imported sets are then normalized to this app's rules: active pairs beyond the
+cap of five are **archived, never dropped**, and a second randomized reading
+loses only its source ID and stays an ordinary prayer.
+
+After the compatibility apply commits, the restore service calls the normal
+backup scheduler exactly once. It rebuilds from the live Hive boxes rather
+than copying the foreign JSON: the debounced local backup therefore contains
+the imported shared data, every retained Twelve Steps-only section, and
+`product: twelve-steps`; Drive receives the same canonical payload when sync
+state permits it. A scheduling error is logged after commit and does not turn
+the successful data restore into a false failure.
 
 ### 3.7 Restore-point UX & scenarios
 When signed into Drive, the Data Management tab shows a **Select

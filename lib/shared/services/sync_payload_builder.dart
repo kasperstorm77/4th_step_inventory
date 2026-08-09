@@ -22,6 +22,9 @@ import 'app_settings_service.dart';
 /// Centralized builder for sync/export JSON payload.
 /// Single source of truth for schema version and field mapping.
 class SyncPayloadBuilder {
+  /// Stable application origin for every JSON, local, safety, and Drive backup.
+  static const String productId = 'twelve-steps';
+
   /// Current schema version for sync JSON format
   static const String schemaVersion = '8.0';
 
@@ -33,6 +36,7 @@ class SyncPayloadBuilder {
     final now = DateTime.now().toUtc();
 
     return {
+      'product': productId,
       'version': schemaVersion,
       'exportDate': now.toIso8601String(),
       'lastModified': now.toIso8601String(),

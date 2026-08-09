@@ -42,7 +42,9 @@ The three canonical docs (open the one that fits, then come back):
    [`SyncPayloadBuilder`](lib/shared/services/sync_payload_builder.dart)
    (`schemaVersion '8.0'`); all restore/import goes through
    [`BackupRestoreService`](lib/shared/services/backup_restore_service.dart).
-   Don't serialize or restore a box anywhere else.
+   Don't serialize or restore a box anywhere else. New envelopes identify
+   this app with `product: twelve-steps`; classify origin before a safety
+   backup or mutation, and never treat shared-only product-less JSON as native.
 5. Drive JSON keys are frozen; changes are additive
    ([architecture.md §3.1](docs/architecture.md)). Restore must keep
    accepting the legacy aliases `gratitudeEntries` and

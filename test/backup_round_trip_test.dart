@@ -181,7 +181,7 @@ void main() {
         // by an old build carries the other names and must still restore.
         final result = await BackupRestoreService.restoreFromPayload(
           <String, dynamic>{
-            'version': '8.0',
+            'version': '7.0',
             'gratitudeEntries': [
               {
                 'date': DateTime(2026, 8, 5).toIso8601String(),
@@ -270,7 +270,7 @@ void main() {
       );
 
       final result = await BackupRestoreService.restoreFromPayload(
-        <String, dynamic>{'version': '8.0', 'gratitude': <dynamic>[]},
+        <String, dynamic>{'version': '7.0', 'gratitude': <dynamic>[]},
         createSafetyBackup: false,
       );
 
@@ -284,6 +284,7 @@ void main() {
     // it expects but main.dart did not open throws at upload time.
     expect(() => SyncPayloadBuilder.buildPayload(), returnsNormally);
     final payload = SyncPayloadBuilder.buildPayload();
+    expect(payload['product'], 'twelve-steps');
     expect(payload['version'], '8.0');
     for (final key in const [
       'iAmDefinitions',
@@ -299,12 +300,6 @@ void main() {
     ]) {
       expect(payload.containsKey(key), isTrue, reason: 'missing $key');
     }
-    expect(
-      payload.containsKey('product'),
-      isFalse,
-      reason:
-          'this app never tags a product; that is what makes it not foreign',
-    );
     expect(
       Hive.box<MorningRitualEntry>('morning_ritual_entries').isOpen,
       isTrue,
