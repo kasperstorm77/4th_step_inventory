@@ -883,11 +883,22 @@ which is the exact peer gap recorded as P5.18.
 
 The owner explicitly authorized release `2.3.7+115` to Play alpha and
 TestFlight despite that known peer gap, and separately prohibited every
-operation on the Emotional Sobriety repository. The release therefore uses the
-complete Twelve Steps-only gate (`flutter analyze` and `flutter test`) and does
-not invoke the cross-app script, because doing so would operate on the prohibited
-sibling checkout. This is a one-release scope exception, not evidence that the
-bidirectional contract is green and not a relaxation of the standing gate.
+operation on the Emotional Sobriety repository. The release therefore ran the
+complete Twelve Steps-only gate (`flutter analyze` and all 158 tests passed) but
+did not invoke the cross-app script, because doing so would operate on the
+prohibited sibling checkout. The binaries were built from pushed commit
+`45ceeb9`.
+
+Google Play edit `00934394667389756319` committed the release to closed
+`alpha`; a fresh Android Publisher API read-back reported `completed`, version
+name `2.3.7`, versionCode `115`, exact `en-GB` plus `da-DK` notes, and no active
+`internal` release shadowing it. Apple accepted the Apple Distribution-signed
+IPA under delivery/build UUID `a3c13cda-d3fc-41a3-847d-6c884849a950`; App Store
+Connect then read build `115` back as `VALID` and unexpired, with exact `en-GB`
+plus `da` TestFlight notes and the internal `Internal Testing` group's
+`hasAccessToAllBuilds` still true. This consumed one-release exception is not
+evidence that the bidirectional contract is green and does not relax the
+standing gate.
 
 ---
 

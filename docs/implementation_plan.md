@@ -145,14 +145,15 @@ unsupported origins fail before safety backup or mutation.
       prerelease: it must reject product-less Twelve Steps payloads rather than
       carrying this app's legacy exception across.
 
-**Owner-authorized release exception — 2.3.7+115 (2026-08-09).** The owner
-explicitly ordered this Twelve Steps App build released to Play alpha and
+**Consumed owner-authorized release exception — 2.3.7+115 (2026-08-09).** The
+owner explicitly ordered this Twelve Steps App build released to Play alpha and
 TestFlight despite the known peer gap, then prohibited every operation on the
-Emotional Sobriety repository. For this release only, run the complete
-Twelve Steps-only gate (`flutter analyze` and `flutter test`) but do not invoke
+Emotional Sobriety repository. This release ran the complete Twelve Steps-only
+gate (`flutter analyze` and `flutter test`) but did not invoke
 `scripts/verify-cross-app-recovery.sh`, because that script necessarily operates
-on the prohibited sibling checkout. This exception neither completes the
-blocker above nor weakens the standing bidirectional gate for a future release.
+on the prohibited sibling checkout. The exception is exhausted: it neither
+completes the blocker above nor weakens the standing bidirectional gate for a
+future release.
 
 ---
 
