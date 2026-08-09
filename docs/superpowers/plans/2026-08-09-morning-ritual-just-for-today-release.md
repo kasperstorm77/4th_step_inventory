@@ -460,7 +460,7 @@ Require `Darwin`, version `2.3.6`, build `114`, Apple Distribution signing, `UPL
 
 Use the upload helper output and a fresh App Store Connect read-back to require build 114 for bundle ID `dk.stormstyrken.twelvestepsapp`, successful processing, and the same localized TestFlight notes. Do not submit an App Store version for public review; that is a separate owner action.
 
-- [ ] **Step 3: Record the actual store outcomes and push the closeout**
+- [x] **Step 3: Record the actual store outcomes and push the closeout**
 
 Update Phase 24 with the Play track/status/versionCode/notes read-back and TestFlight build/processing/notes read-back. Mark the completed plan boxes, stage only the documentation plan/history files, commit with:
 
