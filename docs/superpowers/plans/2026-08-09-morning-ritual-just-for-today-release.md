@@ -252,7 +252,7 @@ In P2.2, link the first-class editor choice to the frozen portable representatio
 
 Append `## Phase 24 — Just for Today becomes a first-class ritual choice`. Record the hidden-switch root cause, the presentation-only mapping, the unchanged runner, and the bidirectional validator result. Add final store details only after both store commands return their verified states.
 
-- [ ] **Step 5: Close the design and plan records**
+- [x] **Step 5: Close the design and plan records**
 
 Change the design status to `Implemented and released in 2.3.6+114`. Mark completed plan checkboxes only after their commands succeed. Keep failed or blocked store steps unchecked with the exact evidence in the history entry.
 
@@ -365,7 +365,7 @@ git status --short
 
 Expected: `NEVER_READ_THIS_FILE.md` remains unstaged.
 
-- [ ] **Step 4: Commit and push main**
+- [x] **Step 4: Commit and push main**
 
 Commit with:
 
@@ -379,7 +379,7 @@ Push with:
 git push origin main
 ```
 
-- [ ] **Step 5: Read back exact Git state**
+- [x] **Step 5: Read back exact Git state**
 
 Run:
 
@@ -404,7 +404,7 @@ Expected: all three SHAs match; only the pre-existing unstaged protected-file ch
 - Consumes: pushed `main`, `2.3.6+114`, release signing, service-account credential, top bilingual notes.
 - Produces: release-signed AAB and Play alpha versionCode 114 with exact localized notes.
 
-- [ ] **Step 1: Build and verify the AAB**
+- [x] **Step 1: Build and verify the AAB**
 
 Run:
 
@@ -414,7 +414,7 @@ bash scripts/build-aab.sh
 
 Require version `2.3.6`, versionCode `114`, a fresh AAB, and a non-debug signer.
 
-- [ ] **Step 2: Publish to the hard-pinned closed alpha track**
+- [x] **Step 2: Publish to the hard-pinned closed alpha track**
 
 Run:
 
@@ -424,7 +424,7 @@ bash scripts/upload-aab-to-play.sh --yes
 
 Require the script to commit alpha versionCode 114, read it back as served, and report no active `internal` release that shadows alpha.
 
-- [ ] **Step 3: Read back the raw release form**
+- [x] **Step 3: Read back the raw release form**
 
 Run:
 
@@ -445,7 +445,7 @@ Inspect the fresh `alpha` release carrying versionCode `114`. Require its `relea
 - Consumes: pushed `main`, `2.3.6+114`, Apple Distribution signing, app-specific password, App Store Connect API key, top bilingual notes.
 - Produces: TestFlight build 114 with en-GB and Danish “What to Test” notes.
 
-- [ ] **Step 1: Confirm macOS and credentials through script preflight**
+- [x] **Step 1: Confirm macOS and credentials through script preflight**
 
 Run:
 
@@ -456,7 +456,7 @@ bash scripts/upload-ipa-to-testflight.sh --build
 
 Require `Darwin`, version `2.3.6`, build `114`, Apple Distribution signing, `UPLOAD SUCCEEDED`, and successful automatic note updates for `en-GB` and `da`/`da-DK`.
 
-- [ ] **Step 2: Verify App Store Connect state**
+- [x] **Step 2: Verify App Store Connect state**
 
 Use the upload helper output and a fresh App Store Connect read-back to require build 114 for bundle ID `dk.stormstyrken.twelvestepsapp`, successful processing, and the same localized TestFlight notes. Do not submit an App Store version for public review; that is a separate owner action.
 

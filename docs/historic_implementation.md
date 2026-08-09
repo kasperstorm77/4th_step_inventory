@@ -839,6 +839,19 @@ recovery gate then proved that this app still restores Emotional Sobriety's
 fixtures, Emotional Sobriety accepts a live export containing the randomized
 definition and history fields, and both applications' own parity suites pass.
 
+Release `2.3.6+114` was built from pushed commit `5a2fcaf`. Google Play's
+Android Publisher API read back closed-testing track `alpha` as `completed`
+with versionCode `114`, version name `2.3.6`, no active `internal` release, and
+exact `en-GB` plus `da-DK` release notes from `release.md`. The AAB was signed
+by the release certificate rather than the debug fallback.
+
+Apple accepted the Apple Distribution-signed IPA with delivery/build UUID
+`180b34e7-8c8d-4e30-aef8-80d1e0409926`. A fresh App Store Connect API read-back
+reported build `114` as `VALID`, matched both localized TestFlight notes
+exactly (`en-GB` and Apple's `da` locale), and confirmed that the internal
+`Internal Testing` group has access to all builds. No public App Store version
+was submitted for review; that remains a separate owner action.
+
 ---
 
 ## Data-format migration notes

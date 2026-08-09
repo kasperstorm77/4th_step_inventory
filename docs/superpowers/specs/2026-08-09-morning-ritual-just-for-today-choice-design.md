@@ -1,7 +1,7 @@
 # Morning Ritual Just for Today Choice
 
 **Date:** 2026-08-09
-**Status:** Implemented; release verification pending
+**Status:** Implemented and released in 2.3.6+114
 
 ## Problem
 
