@@ -58,15 +58,58 @@ class RestoreResult {
   final String? error;
   final RestoreCounts counts;
 
+  /// True only when the restore failed AND the automatic rollback that should
+  /// have undone it also failed. This is the one outcome where the data on disk
+  /// may be a mix of old and new, so it is reported separately from an ordinary
+  /// failure (which always leaves the data exactly as it was).
+  final bool rollbackFailed;
+
   const RestoreResult({
     required this.success,
     this.error,
     this.counts = const RestoreCounts(),
+    this.rollbackFailed = false,
   });
 
   @override
   String toString() =>
-      'RestoreResult(success: $success, error: $error, counts: $counts)';
+      'RestoreResult(success: $success, error: $error, counts: $counts, '
+      'rollbackFailed: $rollbackFailed)';
+}
+
+/// A restore failed and the automatic rollback failed too.
+///
+/// Ordinary restore failures are invisible to the data: every box is put back
+/// as it was. This exception is the exception to that — it means the rollback
+/// itself threw, so the boxes may hold a mix of old and new records and the
+/// pre-restore safety backup is the remaining route back.
+class BackupRollbackException implements Exception {
+  BackupRollbackException(this.cause, this.rollbackError);
+
+  /// What made the restore fail in the first place.
+  final Object cause;
+
+  /// What then made the rollback fail.
+  final Object rollbackError;
+
+  @override
+  String toString() =>
+      'Restore failed ($cause) and the automatic rollback also failed '
+      '($rollbackError). Data may be partially restored — recover from the '
+      'pre-restore safety backup.';
+}
+
+/// A restore was refused before it touched anything.
+///
+/// Thrown by the pre-flight, which runs before the first `clear()`. A payload
+/// that fails pre-flight has changed nothing, so there is nothing to roll back.
+class RestorePreflightException implements Exception {
+  RestorePreflightException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'Restore pre-flight failed: $reason';
 }
 
 /// The application identity proven by a backup envelope.
@@ -547,9 +590,29 @@ class BackupRestoreService {
       }
 
       return RestoreResult(success: true, counts: counts);
-    } catch (e) {
-      if (kDebugMode) print('BackupRestoreService: Restore failed: $e');
+    } on BackupRollbackException catch (e) {
+      // The one outcome where the data on disk may be a mix of old and new.
+      // Reported distinctly so the caller can tell the user to recover from the
+      // safety backup instead of simply retrying.
+      if (kDebugMode) print('BackupRestoreService: $e');
+      return RestoreResult(
+        success: false,
+        error: e.toString(),
+        rollbackFailed: true,
+      );
+    } on RestorePreflightException catch (e) {
+      // Refused before the first write — nothing was touched.
+      if (kDebugMode) print('BackupRestoreService: $e');
       return RestoreResult(success: false, error: e.toString());
+    } catch (e) {
+      // Everything else was rolled back automatically by _applyPayload.
+      if (kDebugMode) {
+        print('BackupRestoreService: Restore failed and was rolled back: $e');
+      }
+      return RestoreResult(
+        success: false,
+        error: 'Restore failed and was rolled back: $e',
+      );
     }
   }
 
@@ -594,22 +657,146 @@ class BackupRestoreService {
   /// Sobriety file carries no people/reflections/gratitude/notifications, so
   /// importing one adds its five datasets and keeps the rest of this app's
   /// data.
-  static Future<RestoreCounts> _applyPayload(Map<String, dynamic> data) async {
-    int entriesCount = 0;
-    int iAmCount = 0;
-    int peopleCount = 0;
-    int reflectionsCount = 0;
-    int gratitudeCount = 0;
-    int agnosticismCount = 0;
-    int ritualItemsCount = 0;
-    int ritualEntriesCount = 0;
-    int notificationsCount = 0;
-    int skippedRecords = 0;
-    bool hasAppSettings = false;
+  // ---------------------------------------------------------------------------
+  // Atomic apply: decode → pre-flight → snapshot → write → roll back on failure
+  // ---------------------------------------------------------------------------
 
-    // ---------------------------------------------------------------------------
-    // I Am Definitions (MUST be imported FIRST - entries reference them)
-    // ---------------------------------------------------------------------------
+  /// Which box each payload section writes.
+  ///
+  /// The legacy aliases (`gratitudeEntries`, `agnosticismPapers`) map to the
+  /// same box as their canonical name, so a legacy payload snapshots and
+  /// pre-flights exactly what it will actually touch.
+  static final Map<String, String> _sectionBoxNames = <String, String>{
+    'iAmDefinitions': 'i_am_definitions',
+    'entries': 'entries',
+    'people': 'people_box',
+    'reflections': 'reflections_box',
+    'gratitude': 'gratitude_box',
+    'gratitudeEntries': 'gratitude_box',
+    'agnosticism': 'agnosticism_pairs',
+    'agnosticismPapers': 'agnosticism_pairs',
+    'morningRitualItems': 'morning_ritual_items',
+    'morningRitualEntries': 'morning_ritual_entries',
+    'notifications': NotificationsService.notificationsBoxName,
+    'appSettings': 'settings',
+  };
+
+  /// Capture one box's contents so they can be put back verbatim.
+  ///
+  /// Snapshots the key→value map rather than just the values: the boxes are a
+  /// mix of keyed (`put`) and auto-keyed (`add`) writes, and a rollback has to
+  /// restore the original keys, not merely the original records.
+  ///
+  /// The copy is shallow (the same record instances). That is safe only
+  /// because every section `clear()`s its box before any mutation, so no
+  /// journalled instance is ever edited in place. A future write that mutates
+  /// an existing record BEFORE its box is cleared would corrupt the journal
+  /// silently — clear first, always.
+  static _BoxJournal _journal<T>(String name) {
+    final box = Hive.box<T>(name);
+    final contents = Map<dynamic, T>.from(box.toMap());
+    return _BoxJournal(name, () async {
+      await box.clear();
+      await box.putAll(contents);
+    });
+  }
+
+  static _BoxJournal _journalFor(String boxName) {
+    switch (boxName) {
+      case 'i_am_definitions':
+        return _journal<IAmDefinition>(boxName);
+      case 'entries':
+        return _journal<InventoryEntry>(boxName);
+      case 'people_box':
+        return _journal<Person>(boxName);
+      case 'reflections_box':
+        return _journal<ReflectionEntry>(boxName);
+      case 'gratitude_box':
+        return _journal<GratitudeEntry>(boxName);
+      case 'agnosticism_pairs':
+        return _journal<BarrierPowerPair>(boxName);
+      case 'morning_ritual_items':
+        return _journal<RitualItem>(boxName);
+      case 'morning_ritual_entries':
+        return _journal<MorningRitualEntry>(boxName);
+      case 'settings':
+        return _journal<dynamic>(boxName);
+    }
+    if (boxName == NotificationsService.notificationsBoxName) {
+      return _journal<AppNotification>(boxName);
+    }
+    // A section was added to _sectionBoxNames without a journal case. Refuse
+    // before the mutation rather than restore a box we cannot undo.
+    throw RestorePreflightException('No rollback journal for box "$boxName"');
+  }
+
+  /// Every box this payload can write, deduplicated.
+  static List<String> _boxesTouchedBy(Map<String, dynamic> data) {
+    final names = <String>{};
+    for (final entry in _sectionBoxNames.entries) {
+      if (data[entry.key] != null) names.add(entry.value);
+    }
+    return names.toList(growable: false);
+  }
+
+  /// Refuse a restore that cannot complete, before it changes anything.
+  ///
+  /// The realistic mid-restore failure is a box that is not open — a corrupt
+  /// box `main.dart` deleted and could not recreate, or a code path that
+  /// restores before the boxes are up. Catching it here means the payload never
+  /// starts a mutation it cannot finish.
+  static void _preflight(Map<String, dynamic> data) {
+    final missing = <String>[];
+    for (final boxName in _boxesTouchedBy(data)) {
+      if (!Hive.isBoxOpen(boxName)) {
+        missing.add(boxName);
+      }
+    }
+    if (missing.isNotEmpty) {
+      throw RestorePreflightException(
+        'these boxes are not open: ${missing.join(', ')}',
+      );
+    }
+  }
+
+  /// Snapshot every box the payload can write.
+  ///
+  /// A box open under a different generic than the journal expects makes
+  /// `Hive.box<T>` throw a plain `HiveError`. Nothing has been written at this
+  /// point, so that is a pre-flight refusal, not a rolled-back failure — report
+  /// it as one.
+  static List<_BoxJournal> _snapshotAll(Map<String, dynamic> data) {
+    try {
+      return <_BoxJournal>[
+        for (final boxName in _boxesTouchedBy(data)) _journalFor(boxName),
+      ];
+    } on RestorePreflightException {
+      rethrow;
+    } catch (e) {
+      throw RestorePreflightException('could not snapshot a box: $e');
+    }
+  }
+
+  /// Fault-injection seam for the rollback tests.
+  ///
+  /// Called after each section's write with that section's key. Production
+  /// never sets it. Tests set it to throw at a chosen point in the write phase
+  /// to prove that every box already written is put back.
+  @visibleForTesting
+  static Future<void> Function(String section)? afterSectionWriteForTest;
+
+  /// Apply a payload as one all-or-nothing unit.
+  ///
+  /// Every section is decoded BEFORE the first `clear()`, every affected box is
+  /// snapshotted, and any throw from the write phase rolls all of them back
+  /// automatically. The caller therefore only ever sees two states: the restore
+  /// happened, or nothing happened. The single exception is a rollback that
+  /// itself fails, which is reported as [BackupRollbackException].
+  static Future<RestoreCounts> _applyPayload(Map<String, dynamic> data) async {
+    // -------------------------------------------------------------------------
+    // Phase 1: decode everything. No box is touched here, so a payload full of
+    // unreadable records fails (or skips) before anything is destroyed.
+    // -------------------------------------------------------------------------
     final iAmSection = _decodeSection<IAmDefinition>(
       data['iAmDefinitions'],
       'iAmDefinitions',
@@ -619,214 +806,253 @@ class BackupRestoreService {
         reasonToExist: json['reasonToExist'] as String?,
       ),
     );
-    if (iAmSection != null) {
-      skippedRecords += iAmSection.skipped;
-      final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
-      await iAmBox.clear();
-      for (final def in iAmSection.items) {
-        await iAmBox.add(def);
-      }
-      iAmCount = iAmBox.length;
-    }
-
-    // ---------------------------------------------------------------------------
-    // Inventory Entries (4th Step)
-    // ---------------------------------------------------------------------------
     final entriesSection = _decodeSection<InventoryEntry>(
       data['entries'],
       'entries',
       InventoryEntry.fromJson,
     );
-    if (entriesSection != null) {
-      skippedRecords += entriesSection.skipped;
-      final entriesBox = Hive.box<InventoryEntry>('entries');
-      await entriesBox.clear();
-      for (final entry in entriesSection.items) {
-        await entriesBox.add(entry);
-      }
-      entriesCount = entriesBox.length;
-      // Migrate order values for backwards compatibility
-      await InventoryService.migrateOrderValues();
-    }
-
-    // ---------------------------------------------------------------------------
-    // People (8th Step)
-    // ---------------------------------------------------------------------------
     final peopleSection = _decodeSection<Person>(
       data['people'],
       'people',
       Person.fromJson,
     );
-    if (peopleSection != null) {
-      skippedRecords += peopleSection.skipped;
-      final peopleBox = Hive.box<Person>('people_box');
-      await peopleBox.clear();
-      for (final person in peopleSection.items) {
-        await peopleBox.put(person.internalId, person);
-      }
-      peopleCount = peopleBox.length;
-    }
-
-    // ---------------------------------------------------------------------------
-    // Reflections (Evening Ritual)
-    // ---------------------------------------------------------------------------
     final reflectionsSection = _decodeSection<ReflectionEntry>(
       data['reflections'],
       'reflections',
       ReflectionEntry.fromJson,
     );
-    if (reflectionsSection != null) {
-      skippedRecords += reflectionsSection.skipped;
-      final reflectionsBox = Hive.box<ReflectionEntry>('reflections_box');
-      await reflectionsBox.clear();
-      for (final reflection in reflectionsSection.items) {
-        await reflectionsBox.put(reflection.internalId, reflection);
-      }
-      reflectionsCount = reflectionsBox.length;
-    }
-
-    // ---------------------------------------------------------------------------
-    // Gratitude (supports legacy 'gratitudeEntries' key)
-    // ---------------------------------------------------------------------------
     final gratitudeSection = _decodeSection<GratitudeEntry>(
       data['gratitude'] ?? data['gratitudeEntries'],
       'gratitude',
       GratitudeEntry.fromJson,
     );
-    if (gratitudeSection != null) {
-      skippedRecords += gratitudeSection.skipped;
-      final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
-      await gratitudeBox.clear();
-      for (final gratitude in gratitudeSection.items) {
-        await gratitudeBox.add(gratitude);
-      }
-      gratitudeCount = gratitudeBox.length;
-    }
-
-    // ---------------------------------------------------------------------------
-    // Agnosticism (supports legacy 'agnosticismPapers' key; Emotional Sobriety's
-    // 'agnosticismPairs' is mapped onto 'agnosticism' before we get here)
-    // ---------------------------------------------------------------------------
     final agnosticismSection = _decodeSection<BarrierPowerPair>(
       data['agnosticism'] ?? data['agnosticismPapers'],
       'agnosticism',
       BarrierPowerPair.fromJson,
     );
-    if (agnosticismSection != null) {
-      skippedRecords += agnosticismSection.skipped;
-      final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
-      await agnosticismBox.clear();
-      for (final pair in _withEnforcedActivePairCap(agnosticismSection.items)) {
-        await agnosticismBox.put(pair.id, pair);
-      }
-      agnosticismCount = agnosticismBox.length;
-    }
-
-    // ---------------------------------------------------------------------------
-    // Morning Ritual Items (Definitions)
-    // ---------------------------------------------------------------------------
     final ritualItemsSection = _decodeSection<RitualItem>(
       data['morningRitualItems'],
       'morningRitualItems',
       RitualItem.fromJson,
     );
-    if (ritualItemsSection != null) {
-      skippedRecords += ritualItemsSection.skipped;
-      final morningRitualItemsBox = Hive.box<RitualItem>(
-        'morning_ritual_items',
-      );
-      await morningRitualItemsBox.clear();
-      for (final item in _withSingleRandomizedReading(
-        ritualItemsSection.items,
-      )) {
-        await morningRitualItemsBox.put(item.id, item);
-      }
-      ritualItemsCount = morningRitualItemsBox.length;
-      // An imported set can arrive with gaps or duplicate sort orders; the
-      // shared contract needs them contiguous from zero before the next export.
-      await MorningRitualService.migrateSortOrders();
-    }
-
-    // ---------------------------------------------------------------------------
-    // Morning Ritual Entries (Daily Completions)
-    // ---------------------------------------------------------------------------
     final ritualEntriesSection = _decodeSection<MorningRitualEntry>(
       data['morningRitualEntries'],
       'morningRitualEntries',
       MorningRitualEntry.fromJson,
     );
-    if (ritualEntriesSection != null) {
-      skippedRecords += ritualEntriesSection.skipped;
-      final morningRitualEntriesBox = Hive.box<MorningRitualEntry>(
-        'morning_ritual_entries',
-      );
-      await morningRitualEntriesBox.clear();
-      for (final entry in ritualEntriesSection.items) {
-        await morningRitualEntriesBox.put(entry.id, entry);
-      }
-      ritualEntriesCount = morningRitualEntriesBox.length;
-    }
-
-    // ---------------------------------------------------------------------------
-    // Notifications
-    // ---------------------------------------------------------------------------
     final notificationsSection = _decodeSection<AppNotification>(
       data['notifications'],
       'notifications',
       AppNotification.fromJson,
     );
-    if (notificationsSection != null) {
-      skippedRecords += notificationsSection.skipped;
-      final notificationsBox = Hive.box<AppNotification>(
-        NotificationsService.notificationsBoxName,
-      );
-      await notificationsBox.clear();
-      for (final n in notificationsSection.items) {
-        await notificationsBox.put(n.id, n);
+
+    // -------------------------------------------------------------------------
+    // Phase 2: pre-flight, then snapshot every box the payload can write.
+    // -------------------------------------------------------------------------
+    _preflight(data);
+    final journals = _snapshotAll(data);
+
+    // -------------------------------------------------------------------------
+    // Phase 3: write. Any throw from here rolls every snapshot back.
+    // -------------------------------------------------------------------------
+    try {
+      int entriesCount = 0;
+      int iAmCount = 0;
+      int peopleCount = 0;
+      int reflectionsCount = 0;
+      int gratitudeCount = 0;
+      int agnosticismCount = 0;
+      int ritualItemsCount = 0;
+      int ritualEntriesCount = 0;
+      int notificationsCount = 0;
+      int skippedRecords = 0;
+      bool hasAppSettings = false;
+
+      // I Am Definitions MUST be written first — entries reference them.
+      if (iAmSection != null) {
+        skippedRecords += iAmSection.skipped;
+        final iAmBox = Hive.box<IAmDefinition>('i_am_definitions');
+        await iAmBox.clear();
+        for (final def in iAmSection.items) {
+          await iAmBox.add(def);
+        }
+        iAmCount = iAmBox.length;
+        await afterSectionWriteForTest?.call('iAmDefinitions');
       }
-      notificationsCount = notificationsBox.length;
-      // Re-register the imported reminders with the OS. This is a side effect,
-      // not part of storing the data: it can fail for reasons that have nothing
-      // to do with the backup (notification permission revoked, no timezone
-      // database, a platform with no plugin implementation). Unguarded, that
-      // threw out of the middle of _applyPayload and the whole restore reported
-      // failure — with every box up to here already rewritten and `appSettings`
-      // never applied. The records are safe on disk either way; the worst case
-      // is a reminder that re-registers on next launch.
-      try {
-        await NotificationsService.rescheduleAll();
-      } catch (e) {
-        if (kDebugMode) {
-          print('BackupRestoreService: rescheduleAll failed after import - $e');
+
+      // Inventory Entries (4th Step)
+      if (entriesSection != null) {
+        skippedRecords += entriesSection.skipped;
+        final entriesBox = Hive.box<InventoryEntry>('entries');
+        await entriesBox.clear();
+        for (final entry in entriesSection.items) {
+          await entriesBox.add(entry);
+        }
+        entriesCount = entriesBox.length;
+        // Migrate order values for backwards compatibility
+        await InventoryService.migrateOrderValues();
+        await afterSectionWriteForTest?.call('entries');
+      }
+
+      // People (8th Step)
+      if (peopleSection != null) {
+        skippedRecords += peopleSection.skipped;
+        final peopleBox = Hive.box<Person>('people_box');
+        await peopleBox.clear();
+        for (final person in peopleSection.items) {
+          await peopleBox.put(person.internalId, person);
+        }
+        peopleCount = peopleBox.length;
+        await afterSectionWriteForTest?.call('people');
+      }
+
+      // Reflections (Evening Ritual)
+      if (reflectionsSection != null) {
+        skippedRecords += reflectionsSection.skipped;
+        final reflectionsBox = Hive.box<ReflectionEntry>('reflections_box');
+        await reflectionsBox.clear();
+        for (final reflection in reflectionsSection.items) {
+          await reflectionsBox.put(reflection.internalId, reflection);
+        }
+        reflectionsCount = reflectionsBox.length;
+        await afterSectionWriteForTest?.call('reflections');
+      }
+
+      // Gratitude (supports legacy 'gratitudeEntries' key)
+      if (gratitudeSection != null) {
+        skippedRecords += gratitudeSection.skipped;
+        final gratitudeBox = Hive.box<GratitudeEntry>('gratitude_box');
+        await gratitudeBox.clear();
+        for (final gratitude in gratitudeSection.items) {
+          await gratitudeBox.add(gratitude);
+        }
+        gratitudeCount = gratitudeBox.length;
+        await afterSectionWriteForTest?.call('gratitude');
+      }
+
+      // Agnosticism (supports legacy 'agnosticismPapers' key; Emotional
+      // Sobriety's 'agnosticismPairs' is mapped onto 'agnosticism' earlier)
+      if (agnosticismSection != null) {
+        skippedRecords += agnosticismSection.skipped;
+        final agnosticismBox = Hive.box<BarrierPowerPair>('agnosticism_pairs');
+        await agnosticismBox.clear();
+        for (final pair in _withEnforcedActivePairCap(
+          agnosticismSection.items,
+        )) {
+          await agnosticismBox.put(pair.id, pair);
+        }
+        agnosticismCount = agnosticismBox.length;
+        await afterSectionWriteForTest?.call('agnosticism');
+      }
+
+      // Morning Ritual Items (Definitions)
+      if (ritualItemsSection != null) {
+        skippedRecords += ritualItemsSection.skipped;
+        final morningRitualItemsBox = Hive.box<RitualItem>(
+          'morning_ritual_items',
+        );
+        await morningRitualItemsBox.clear();
+        for (final item in _withSingleRandomizedReading(
+          ritualItemsSection.items,
+        )) {
+          await morningRitualItemsBox.put(item.id, item);
+        }
+        ritualItemsCount = morningRitualItemsBox.length;
+        // An imported set can arrive with gaps or duplicate sort orders; the
+        // shared contract needs them contiguous from zero before the next
+        // export.
+        await MorningRitualService.migrateSortOrders();
+        await afterSectionWriteForTest?.call('morningRitualItems');
+      }
+
+      // Morning Ritual Entries (Daily Completions)
+      if (ritualEntriesSection != null) {
+        skippedRecords += ritualEntriesSection.skipped;
+        final morningRitualEntriesBox = Hive.box<MorningRitualEntry>(
+          'morning_ritual_entries',
+        );
+        await morningRitualEntriesBox.clear();
+        for (final entry in ritualEntriesSection.items) {
+          await morningRitualEntriesBox.put(entry.id, entry);
+        }
+        ritualEntriesCount = morningRitualEntriesBox.length;
+        await afterSectionWriteForTest?.call('morningRitualEntries');
+      }
+
+      // Notifications (Reminders)
+      if (notificationsSection != null) {
+        skippedRecords += notificationsSection.skipped;
+        final notificationsBox = Hive.box<AppNotification>(
+          NotificationsService.notificationsBoxName,
+        );
+        await notificationsBox.clear();
+        for (final n in notificationsSection.items) {
+          await notificationsBox.put(n.id, n);
+        }
+        notificationsCount = notificationsBox.length;
+        await afterSectionWriteForTest?.call('notifications');
+        // Re-register the imported reminders with the OS. This is a side
+        // effect, not part of storing the data: it can fail for reasons that
+        // have nothing to do with the backup (notification permission revoked,
+        // no timezone database, a platform with no plugin implementation).
+        // Unguarded, that would now roll back a restore whose DATA was
+        // perfectly good. The records are safe on disk either way; the worst
+        // case is a reminder that re-registers on next launch.
+        try {
+          await NotificationsService.rescheduleAll();
+        } catch (e) {
+          if (kDebugMode) {
+            print(
+              'BackupRestoreService: rescheduleAll failed after import - $e',
+            );
+          }
         }
       }
-    }
 
-    // ---------------------------------------------------------------------------
-    // App Settings (v8.0+)
-    // ---------------------------------------------------------------------------
-    if (data.containsKey('appSettings')) {
-      final appSettingsData = data['appSettings'];
-      if (appSettingsData is Map<String, dynamic>) {
-        if (kDebugMode) print('BackupRestoreService: Importing app settings');
-        await AppSettingsService.importFromSync(appSettingsData);
-        hasAppSettings = true;
+      // App Settings (v8.0+)
+      if (data.containsKey('appSettings')) {
+        final appSettingsData = data['appSettings'];
+        if (appSettingsData is Map<String, dynamic>) {
+          if (kDebugMode) print('BackupRestoreService: Importing app settings');
+          await AppSettingsService.importFromSync(appSettingsData);
+          hasAppSettings = true;
+          await afterSectionWriteForTest?.call('appSettings');
+        }
       }
-    }
 
-    return RestoreCounts(
-      entries: entriesCount,
-      iAmDefinitions: iAmCount,
-      people: peopleCount,
-      reflections: reflectionsCount,
-      gratitude: gratitudeCount,
-      agnosticism: agnosticismCount,
-      morningRitualItems: ritualItemsCount,
-      morningRitualEntries: ritualEntriesCount,
-      notifications: notificationsCount,
-      hasAppSettings: hasAppSettings,
-      skippedRecords: skippedRecords,
-    );
+      return RestoreCounts(
+        entries: entriesCount,
+        iAmDefinitions: iAmCount,
+        people: peopleCount,
+        reflections: reflectionsCount,
+        gratitude: gratitudeCount,
+        agnosticism: agnosticismCount,
+        morningRitualItems: ritualItemsCount,
+        morningRitualEntries: ritualEntriesCount,
+        notifications: notificationsCount,
+        hasAppSettings: hasAppSettings,
+        skippedRecords: skippedRecords,
+      );
+    } catch (cause) {
+      // Put every box back exactly as it was. Rolling back in reverse order is
+      // not required (each journal is independent) but keeps the debug log
+      // readable against the write order above.
+      if (kDebugMode) {
+        print('BackupRestoreService: Apply failed ($cause) — rolling back');
+      }
+      try {
+        for (final journal in journals.reversed) {
+          await journal.rollback();
+        }
+      } catch (rollbackError) {
+        throw BackupRollbackException(cause, rollbackError);
+      }
+      if (kDebugMode) {
+        print('BackupRestoreService: Rolled back ${journals.length} boxes');
+      }
+      rethrow;
+    }
   }
 
   /// Decode one payload section up front. Returns null when the section is
@@ -911,4 +1137,14 @@ class BackupRestoreService {
         })
         .toList(growable: false);
   }
+}
+
+/// One box's pre-restore contents, plus the closure that puts them back.
+class _BoxJournal {
+  _BoxJournal(this.name, this._rollback);
+
+  final String name;
+  final Future<void> Function() _rollback;
+
+  Future<void> rollback() => _rollback();
 }

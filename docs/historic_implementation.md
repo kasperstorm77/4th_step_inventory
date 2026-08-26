@@ -953,3 +953,48 @@ registered-SHA-1 `debug.keystore` in the repo was never actually used — it is
 now wired in when present, which is what makes Google Sign-In work in debug
 builds on a fresh machine.
 
+## 2026-08-26 — Atomic restore: pre-flight, snapshot, automatic rollback
+
+Probing the Emotional Sobriety compatibility import showed that
+`_applyPayload` was never transactional: it cleared and rewrote box by box,
+so a throw late in the sequence reported a failed restore while every box
+before the failure point already held the incoming rows. The safety backup
+was the only way back, and the user had to know to use it. The owner's
+verdict: recovery must be automatic and invisible; data integrity is not
+negotiable.
+
+`_applyPayload` now decodes everything first, pre-flights that every target
+box is open (refusing with `RestorePreflightException` before the first
+`clear()`), snapshots each affected box's full key→value map, and rolls all
+of them back if any write throws. A rollback that itself fails is the one
+distinct outcome — `BackupRollbackException`, surfaced as
+`RestoreResult.rollbackFailed` — so a caller can tell "nothing happened"
+from "recover from the safety backup". Native and foreign restores share the
+path, so a failed twelve-steps/8.0 Drive restore is protected the same way.
+The wire format is untouched. Pinned by
+[`test/cross_app_data_safety_test.dart`](../test/cross_app_data_safety_test.dart):
+byte-identical snapshots after injected late failures in both a foreign
+import and a native restore, pre-flight refusal, and the rollback-failure
+report. Both native fixtures there are built from a live
+`SyncPayloadBuilder` run, not hand-authored — a hand-written `'column': 0`
+had silently decoded to nothing, the exact trap hard rule 9 describes.
+
+## 2026-08-26 — Cross-app gate green in both directions again
+
+The 2.3.7+115 build (2026-08-09) shipped under an owner-authorized exception:
+Emotional Sobriety did not yet enforce a strict app-specific origin gate, and
+the owner prohibited every operation on that repository, so
+`scripts/verify-cross-app-recovery.sh` — which necessarily runs in the sibling
+checkout — was not invoked. The Twelve Steps-only gate (`flutter analyze`,
+`flutter test`) ran in full. That exception was single-use and is consumed.
+
+Emotional Sobriety now gates on intent: its `BackupValidator.decodeString`
+requires a `RestoreIntent`, accepts a `twelve-steps` / `8.0` file only under
+`manualJsonImport`, and throws `FormatException` under `nativeRestore`. Our
+probe template had the old single-argument call and failed to compile, which
+the script correctly reported as a rejected export. The probe now passes
+`manualJsonImport` and additionally asserts the `nativeRestore` refusal, so a
+regression on either half of that app's gate fails this release. Verified:
+`bash scripts/verify-cross-app-recovery.sh` exits 0 with the atomic-restore
+change in place.
+

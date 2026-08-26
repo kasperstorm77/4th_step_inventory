@@ -139,25 +139,48 @@ unsupported origins fail before safety backup or mutation.
 
 - [x] Implement and regression-test the strict Twelve Steps gate with legacy
       backward compatibility.
-- [ ] **Release blocker:** implement the matching strict app-specific gate in
-      Emotional Sobriety, update its live-output fixture/validator/docs, and
-      restore a green `bash scripts/verify-cross-app-recovery.sh`. That app is
-      prerelease: it must reject product-less Twelve Steps payloads rather than
-      carrying this app's legacy exception across.
-
-**Consumed owner-authorized release exception — 2.3.7+115 (2026-08-09).** The
-owner explicitly ordered this Twelve Steps App build released to Play alpha and
-TestFlight despite the known peer gap, then prohibited every operation on the
-Emotional Sobriety repository. This release ran the complete Twelve Steps-only
-gate (`flutter analyze` and `flutter test`) but did not invoke
-`scripts/verify-cross-app-recovery.sh`, because that script necessarily operates
-on the prohibited sibling checkout. The exception is exhausted: it neither
-completes the blocker above nor weakens the standing bidirectional gate for a
-future release.
+- [x] Make every restore atomic (2026-08-26). `_applyPayload` decodes, pre-flights,
+      snapshots, writes, and rolls every box back on any throw. Rules and
+      phases are owned by [architecture.md §3.6](./architecture.md#36-restore--import-path);
+      verification is
+      [`test/cross_app_data_safety_test.dart`](../test/cross_app_data_safety_test.dart).
+- [x] Emotional Sobriety enforces the matching strict gate (2026-08-26): it
+      accepts a `twelve-steps` / `8.0` file only as an explicit manual import
+      and refuses it as an automatic restore. The probe in
+      `scripts/verify-cross-app-recovery.sh` asserts both halves. The
+      bidirectional gate is green; the 2.3.7 owner-authorized exception is
+      recorded in [historic_implementation.md](./historic_implementation.md).
 
 ---
 
 ## P3 — Engineering polish
+
+### P3.0 Route `AppSettingsService.importFromSync` errors into the restore rollback
+
+**Outcome.** A failed `settings` write during a restore rolls the restore back
+like every other box.
+
+**Driver.** `importFromSync` catches and logs its own exceptions
+([`app_settings_service.dart`](../lib/shared/services/app_settings_service.dart)),
+so the `settings` box is the one place a partial write cannot reach the
+journalled rollback in `BackupRestoreService._applyPayload`. Today it only
+writes scalar preferences, so the exposure is small; the rule in
+[architecture.md §3.6](./architecture.md#36-restore--import-path) is stronger
+than this one path.
+
+**Work rules.**
+- Rethrow from `importFromSync` when called from the restore path; keep the
+  swallow for the settings UI callers.
+- Add no new box and change no key.
+
+**Acceptance.** A test in `test/cross_app_data_safety_test.dart` injects a throw
+inside the `appSettings` write and asserts every box, `settings` included, is
+byte-identical to the pre-restore snapshot.
+
+**Validation.** `flutter analyze` clean; `flutter test` green.
+
+**Document impact.** Remove the `importFromSync` caveat from architecture.md
+§3.6; record the change in historic_implementation.md.
 
 ### P3.1 A real desktop alarm sound
 

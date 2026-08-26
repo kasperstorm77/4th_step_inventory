@@ -191,7 +191,20 @@ void main() {
     final path = Platform.environment['TWELVE_STEPS_EXPORT'];
     expect(path, isNotNull, reason: 'TWELVE_STEPS_EXPORT must be set');
 
-    final decoded = validator.decodeString(File(path!).readAsStringSync());
+    final source = File(path!).readAsStringSync();
+
+    // That app's origin gate: a Twelve Steps file is only ever an explicit
+    // manual import there. Its automatic native-restore path must refuse it.
+    expect(
+      () => validator.decodeString(source, intent: RestoreIntent.nativeRestore),
+      throwsFormatException,
+      reason: 'a Twelve Steps file must not restore automatically over there',
+    );
+
+    final decoded = validator.decodeString(
+      source,
+      intent: RestoreIntent.manualJsonImport,
+    );
     expect(decoded, isA<DecodedTwelveStepsBackup>());
     final ts = decoded as DecodedTwelveStepsBackup;
 

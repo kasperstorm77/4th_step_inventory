@@ -12,13 +12,17 @@ backup, restore, app switching, settings, localization, help. See
   `main.dart`'s open set.
 - **Import/restore:** [`backup_restore_service.dart`](services/backup_restore_service.dart)
   is the only restore path. Validates permissively, takes a safety
-  backup, clears+rewrites each box **present in the payload**, imports I Am
-  defs **before** entries, runs `migrateOrderValues` +
-  `migrateSortOrders` + `rescheduleAll`, fires `DataRefreshService`.
-  **Decode a section before clearing its box** — the old order threw
-  mid-rewrite on one bad record and left the box holding a fragment.
-  Unreadable records are skipped and counted in
-  `RestoreCounts.skippedRecords`, never fatal.
+  backup, then applies **atomically**: decode every section → pre-flight
+  (every target box open, else `RestorePreflightException` before the first
+  `clear()`) → snapshot each affected box → clear+rewrite each box
+  **present in the payload** → **roll every box back automatically if any
+  write throws**. Imports I Am defs **before** entries, runs
+  `migrateOrderValues` + `migrateSortOrders` + `rescheduleAll` (wrapped,
+  non-fatal), fires `DataRefreshService`. Unreadable records are skipped
+  and counted in `RestoreCounts.skippedRecords`, never fatal.
+  `RestoreResult.rollbackFailed` is the one outcome where data may be
+  mixed — surface it distinctly. Don't add a write outside the journalled
+  phase; put a new box in `_sectionBoxNames` **and** `_journalFor`.
 
 ## Before a store release
 **Run `bash scripts/verify-cross-app-recovery.sh` — it must exit 0** (root

@@ -428,20 +428,44 @@ app-private dir. Don't switch desktop back to the documents dir.
 [`BackupRestoreService`](../lib/shared/services/backup_restore_service.dart)
 is the **single import path** (Drive restore, local restore, JSON file
 import). It validates (permissive — warns, never fails, on a missing
-`version`), takes a safety backup, then `_applyPayload` **clears and
-rewrites every box present in the payload**. Ordering matters: **I Am
-definitions import before entries** (entries reference them by id), and
-after import it runs `InventoryService.migrateOrderValues()`,
-`MorningRitualService.migrateSortOrders()` and
-`NotificationsService.rescheduleAll()`, updates `lastModified`, and
-fires `DataRefreshService.notifyDataRestored()` to rebuild the UI.
-`rescheduleAll()` is **wrapped and non-fatal** — re-registering with the OS
-can fail for reasons unrelated to the backup, and unguarded it aborted
-`_applyPayload` mid-sequence and reported a failed restore after the boxes
-had already been rewritten. A
-restore is a **full replace** of the sections the payload carries, so
-local-only records in those sections are wiped; a section the payload
-does not carry leaves its box untouched.
+`version`), takes a safety backup, then `_applyPayload` runs as **one
+all-or-nothing unit** in four phases:
+
+1. **Decode** every section, touching no box. Unreadable records are
+   skipped and counted (`RestoreCounts.skippedRecords`), never fatal.
+2. **Pre-flight**: every box the payload can write must be open and must
+   have a rollback journal. A payload that fails here is refused with
+   `RestorePreflightException` and has changed nothing.
+3. **Snapshot** the full key→value map of every affected box
+   (`_BoxJournal`). Keys, not just values — the boxes mix `put` and `add`.
+4. **Write**: clear and rewrite each box present in the payload. Ordering
+   matters: **I Am definitions import before entries** (entries reference
+   them by id); inside the same phase it runs
+   `InventoryService.migrateOrderValues()`,
+   `MorningRitualService.migrateSortOrders()` and
+   `NotificationsService.rescheduleAll()`. **Any throw in this
+   phase rolls every snapshot back automatically** — the user never has to
+   know a restore failed to keep their data; a failed restore leaves the
+   boxes byte-identical to before. `rescheduleAll()` is wrapped and
+   non-fatal: re-registering with the OS can fail for reasons unrelated to
+   the backup, and it must not roll back a restore whose data was good.
+
+Only after `_applyPayload` returns — i.e. only on success — does
+`restoreFromPayload` update `lastModified` and fire
+`DataRefreshService.notifyDataRestored()`; neither runs on a rolled-back
+restore. `AppSettingsService.importFromSync` swallows its own exceptions,
+so the `settings` box is the one place a partial write cannot trigger a
+rollback (pre-existing; it only writes scalar preferences).
+
+`RestoreResult.rollbackFailed` is the **one** outcome that differs: the
+restore failed *and* the rollback threw (`BackupRollbackException`), so the
+boxes may hold a mix of old and new. Callers must surface it distinctly and
+point at the pre-restore safety backup, which stays as belt-and-braces —
+recovery, not the primary integrity mechanism. A restore is a **full
+replace** of the sections the payload carries, so local-only records in
+those sections are wiped; a section the payload does not carry leaves its
+box untouched. `afterSectionWriteForTest` is a `@visibleForTesting`
+fault-injection seam; production never sets it.
 
 **Every section is decoded before its box is cleared.** A record this app
 cannot read is skipped and counted in `RestoreCounts.skippedRecords`
