@@ -15,7 +15,7 @@
 #   bash scripts/fix-appstore-name.sh --yes      # correct the editable version
 #   bash scripts/fix-appstore-name.sh --name "…" # override the expected name
 #
-# Credentials: ./AuthKey_<KEYID>.p8 (the Key ID is the filename) + ./asc_issuer,
+# Credentials: ./local_files/AuthKey_<KEYID>.p8 (the Key ID is the filename) + ./local_files/asc_issuer,
 # both git-ignored — the same pair upload-ipa-to-testflight.sh uses.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -32,14 +32,14 @@ while (( $# )); do
   shift
 done
 
-key="${ASC_KEY:-$(ls AuthKey_*.p8 2>/dev/null | head -1)}"
-[ -n "$key" ] && [ -f "$key" ] || { echo "AuthKey_<KEYID>.p8 not found at the repo root" >&2; exit 1; }
-[ -f asc_issuer ] || { echo "./asc_issuer not found" >&2; exit 1; }
+key="${ASC_KEY:-$(ls local_files/AuthKey_*.p8 2>/dev/null | head -1)}"
+[ -n "$key" ] && [ -f "$key" ] || { echo "local_files/AuthKey_<KEYID>.p8 not found" >&2; exit 1; }
+[ -f local_files/asc_issuer ] || { echo "./local_files/asc_issuer not found" >&2; exit 1; }
 command -v node >/dev/null 2>&1 || { echo "node 18+ required" >&2; exit 1; }
 
 ASC_KEY="$key" \
 ASC_KEY_ID="$(basename "$key" | sed -E 's/^AuthKey_(.+)\.p8$/\1/')" \
-ASC_ISSUER_ID="$(tr -d ' \n' < asc_issuer)" \
+ASC_ISSUER_ID="$(tr -d ' \n' < local_files/asc_issuer)" \
 ASC_APP_NAME="$name" \
 ASC_APPLY="$apply" \
   node scripts/lib/asc-app-name.mjs

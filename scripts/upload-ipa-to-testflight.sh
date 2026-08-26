@@ -10,7 +10,7 @@
 #      before uploading).
 #   2. Confirms the .ipa is signed "Apple Distribution: … (TEAMID)".
 #   3. Uploads via `xcrun altool --upload-app` using the Apple ID + the
-#      app-specific password in the git-ignored ./app_sp_pw.
+#      app-specific password in the git-ignored ./local_files/app_sp_pw.
 #   4. Sets the en-GB + da-DK "What to Test" notes from release.md on the build —
 #      AUTOMATICALLY via the App Store Connect API when a .p8 key is present
 #      (scripts/lib/asc-testflight-notes.mjs; altool's password auth can't set
@@ -23,7 +23,7 @@
 # bump it in pubspec.yaml first.
 #
 # Auth: the Apple Developer Apple ID (default kasper@stormstyrken.dk — override
-# with --apple-id / $APPLE_ID) and its **app-specific password** in ./app_sp_pw
+# with --apple-id / $APPLE_ID) and its **app-specific password** in ./local_files/app_sp_pw
 # (git-ignored; create at appleid.apple.com → Sign-In & Security → App-Specific
 # Passwords).
 #
@@ -31,7 +31,7 @@
 #   App Store Connect → Users and Access → Integrations → App Store Connect API →
 #   generate a Team key (role "App Manager"). Download AuthKey_<KEYID>.p8 (once),
 #   and note the Key ID + Issuer ID. Then either drop the file + ids at the repo
-#   root — ./AuthKey_<KEYID>.p8 (the Key ID is the filename) + ./asc_issuer (the
+#   ./local_files — AuthKey_<KEYID>.p8 (the Key ID is the filename) + ./asc_issuer (the
 #   Issuer ID), both git-ignored — and the script auto-detects them, or pass
 #   --asc-key/--asc-key-id/--asc-issuer (or ASC_KEY/ASC_KEY_ID/ASC_ISSUER_ID env).
 #   After that EVERY release sets its TestFlight notes with zero manual action.
@@ -42,7 +42,7 @@
 #   --apple-id <id>    override the Apple ID (or $APPLE_ID)
 #   --asc-key <p8>     App Store Connect API .p8 key (auto-detected at repo root)
 #   --asc-key-id <id>  the key's Key ID (default: the AuthKey_<KEYID>.p8 filename)
-#   --asc-issuer <id>  the Issuer ID (default: ./asc_issuer)
+#   --asc-issuer <id>  the Issuer ID (default: ./local_files/asc_issuer)
 #   --dry-run          build + verify the signer + show the notes; DON'T upload
 #   -h | --help
 set -uo pipefail
@@ -74,11 +74,11 @@ while (($#)); do case "$1" in
 esac; shift; done
 
 # Auto-detect the App Store Connect API key so TestFlight notes get set with NO
-# manual paste: a single ./AuthKey_<KEYID>.p8 at the repo root (the Key ID IS the
-# filename) + the Issuer ID in ./asc_issuer (both git-ignored). Flags/env override.
-[[ -z "$ASC_KEY" ]] && ASC_KEY="$(ls "$ROOT"/AuthKey_*.p8 2>/dev/null | head -1)"
+# manual paste: a single ./local_files/AuthKey_<KEYID>.p8 (the Key ID IS the
+# filename) + the Issuer ID in ./local_files/asc_issuer (both git-ignored). Flags/env override.
+[[ -z "$ASC_KEY" ]] && ASC_KEY="$(ls "$ROOT"/local_files/AuthKey_*.p8 2>/dev/null | head -1)"
 [[ -n "$ASC_KEY" && -z "$ASC_KEY_ID" ]] && ASC_KEY_ID="$(basename "$ASC_KEY" | sed -E 's/^AuthKey_(.+)\.p8$/\1/')"
-[[ -z "$ASC_ISSUER" && -f "$ROOT/asc_issuer" ]] && ASC_ISSUER="$(tr -d ' \n\r' < "$ROOT/asc_issuer")"
+[[ -z "$ASC_ISSUER" && -f "$ROOT/local_files/asc_issuer" ]] && ASC_ISSUER="$(tr -d ' \n\r' < "$ROOT/local_files/asc_issuer")"
 ASC_READY=0; [[ -n "$ASC_KEY" && -n "$ASC_KEY_ID" && -n "$ASC_ISSUER" ]] && ASC_READY=1
 
 # macOS-only past this point (the iOS build + altool need Xcode). Checked after
@@ -89,10 +89,10 @@ ASC_READY=0; [[ -n "$ASC_KEY" && -n "$ASC_KEY_ID" && -n "$ASC_ISSUER" ]] && ASC_
 hdr "Pre-flight"
 command -v xcrun >/dev/null || { err "xcrun (Xcode CLT) not found"; exit 1; }
 command -v flutter >/dev/null || { err "flutter not on PATH"; exit 1; }
-PW_FILE="$ROOT/app_sp_pw"
-[[ -f "$PW_FILE" ]] || { err "app-specific password missing at ./app_sp_pw (git-ignored). Create one at appleid.apple.com → Sign-In & Security → App-Specific Passwords."; exit 1; }
+PW_FILE="$ROOT/local_files/app_sp_pw"
+[[ -f "$PW_FILE" ]] || { err "app-specific password missing at ./local_files/app_sp_pw (git-ignored). Create one at appleid.apple.com → Sign-In & Security → App-Specific Passwords."; exit 1; }
 APP_PW="$(tr -d ' \n\r' < "$PW_FILE")"
-[[ -n "$APP_PW" ]] || { err "./app_sp_pw is empty"; exit 1; }
+[[ -n "$APP_PW" ]] || { err "./local_files/app_sp_pw is empty"; exit 1; }
 ok "Apple ID: $APPLE_ID  ·  app-specific password: present"
 
 VERSION_LINE="$(grep -m1 '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*//')"
@@ -139,7 +139,7 @@ if [[ -n "$EN" ]]; then printf "%sen-GB:%s\n%s\n\n%sda-DK:%s\n%s\n" "$b" "$r" "$
 if ((ASC_READY)); then
   ok "App Store Connect API key found (key ${ASC_KEY_ID}) — notes will be set automatically after the upload."
 else
-  warn "No App Store Connect API key — paste the above into App Store Connect → TestFlight → this build → Test Details. To make it automatic next time, drop AuthKey_<KEYID>.p8 + an asc_issuer file at the repo root (one-time; see scripts/lib/asc-testflight-notes.mjs)."
+  warn "No App Store Connect API key — paste the above into App Store Connect → TestFlight → this build → Test Details. To make it automatic next time, drop AuthKey_<KEYID>.p8 + an asc_issuer file in ./local_files (one-time; see scripts/lib/asc-testflight-notes.mjs)."
 fi
 
 # ─── Upload ──────────────────────────────────────────────────────────────────

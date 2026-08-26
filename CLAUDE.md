@@ -134,7 +134,9 @@ The three canonical docs (open the one that fits, then come back):
   adapters with `dart run build_runner build --delete-conflicting-outputs`
   before `flutter analyze`/`flutter test` — a stale `*.g.dart` fails the
   build. Full local setup (codegen, gitignored credential files, platform
-  config) lives in [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md).
+  config) lives in the git-ignored [local_files/LOCAL_SETUP.md](local_files/LOCAL_SETUP.md);
+  every secret, keystore and store credential lives in `local_files/` and
+  moves between machines with `local_files/pack.sh` ([README](local_files/README.md)).
 - **Before any store upload:** `bash scripts/verify-cross-app-recovery.sh`
   exits 0 (hard rule 9). It needs the sibling checkout — pass `--peer PATH`
   or set `$EMOTIONAL_SOBRIETY_REPO` if it isn't at `../emotional_sobriety`.

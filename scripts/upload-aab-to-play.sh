@@ -17,7 +17,7 @@
 # invited under Play Console → Users & permissions with "Release to testing
 # tracks" for this app. Its JSON key is a *publishing* credential (write access
 # to the store listing) — NOT committed; it lives git-ignored at
-# ./play-service-account.json (override with --key or $PLAY_SERVICE_ACCOUNT_JSON).
+# ./local_files/play-service-account.json (override with --key or $PLAY_SERVICE_ACCOUNT_JSON).
 #
 # Caveat: Play requires the VERY FIRST bundle for a new app to be uploaded by
 # hand in the Console before the API will accept uploads. After that, this script
@@ -94,7 +94,7 @@ readonly all_tracks=(internal alpha beta production)
 
 status="completed"       # completed = released to all testers; draft = staged for Console review
 aab="build/app/outputs/bundle/release/app-release.aab"
-key="${PLAY_SERVICE_ACCOUNT_JSON:-play-service-account.json}"
+key="${PLAY_SERVICE_ACCOUNT_JSON:-local_files/play-service-account.json}"
 notes_file="release.md"
 package="dk.stormstyrken.twelvestepsapp"   # the Android applicationId (override with --package)
 dry_run=0
@@ -264,7 +264,7 @@ if [ ! -f "$key" ]; then
   err "Service-account key not found: $key"
   err "Create one (Google Cloud → service account → enable Android Publisher API),"
   err "invite its email under Play Console → Users & permissions with 'Release to"
-  err "testing tracks', download the JSON key to ./play-service-account.json"
+  err "testing tracks', download the JSON key to ./local_files/play-service-account.json"
   err "(git-ignored), or pass --key / set \$PLAY_SERVICE_ACCOUNT_JSON."
   exit 1
 fi

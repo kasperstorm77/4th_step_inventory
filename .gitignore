@@ -19,31 +19,19 @@ migrate_working_dir/
 backup.json
 *.backup.json
 
-# OAuth Credentials - DO NOT COMMIT
+# Local-only secrets, keystores and store credentials live in local_files/
+# (see local_files/README.md). Only the packer script and README are tracked.
+local_files/*
+!local_files/pack.sh
+!local_files/README.md
+# Legacy locations of the same files - keep ignored so a stray copy never lands in git
 lib/shared/services/google_drive/desktop_oauth_config.dart
-
-# Local setup instructions with secrets and keystores - DO NOT COMMIT
 **/LOCAL_SETUP.md
-LOCAL_SETUP.md
-
-# Android signing - DO NOT COMMIT
 android/key.properties
-android/app/*.jks
-android/app/*.keystore
-android/*.jks
-android/*.keystore
 *.jks
 *.keystore
-# Keystores in project root
-debug.keystore
-my-release-key.jks
-
-# Store-publishing credentials (local-only) - DO NOT COMMIT
-# Google Play Developer API service-account key (scripts/upload-aab-to-play.sh)
 play-service-account.json
-# Apple ID app-specific password for altool (scripts/upload-ipa-to-testflight.sh)
 app_sp_pw
-# App Store Connect API key + Issuer ID for auto TestFlight notes
 AuthKey_*.p8
 asc_issuer
 

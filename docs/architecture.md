@@ -704,7 +704,7 @@ docs/
   architecture.md               This file
   historic_implementation.md    Build timeline + migration notes
   implementation_plan.md        Roadmap + release/setup runbooks
-  LOCAL_SETUP.md                Dev environment setup (kept separate)
+  local_files/                  Git-ignored secrets, keystores, LOCAL_SETUP.md + pack.sh mover
   play_store-retain/            Store listing copy (retained)
   static_guidelines/            CLAUDE.md authoring reference (frozen)
 test/

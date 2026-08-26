@@ -25,9 +25,9 @@ So you do **not** edit `android/app/build.gradle.kts` or `ios/Runner/Info.plist`
 ## Preconditions (check first; STOP + report if unmet)
 
 - **Git:** `git status` clean *except* the code change being released, and you're on `main` (or the branch the user named). Don't sweep unrelated dirty files into the release commit. **Never stage `NEVER_READ_THIS_FILE.md`** (it's the user's; leave it alone — but if the user changed it, that's theirs to commit, not yours to author).
-- **Android signing:** `android/key.properties` + the keystore it points at. Without them the AAB is debug-signed and Play rejects it (`scripts/build-aab.sh` warns + verifies the signer).
-- **Play publishing:** `play-service-account.json` at the repo root (git-ignored Play API key). Without it `upload-aab-to-play.sh` can't publish.
-- **App Store (macOS only):** `app_sp_pw` (Apple ID app-specific password) for the `altool` upload, and — for the **auto-notes** — `AuthKey_<KEYID>.p8` + `asc_issuer` at the repo root (the App Store Connect API key + Issuer ID, git-ignored). Without the `.p8` the IPA still uploads but the TestFlight notes fall back to a manual paste (the script prints them). If not on macOS, skip Phase B's iOS step and report it.
+- **Android signing:** `local_files/key.properties` + the keystore it points at. Without them the AAB is debug-signed and Play rejects it (`scripts/build-aab.sh` warns + verifies the signer).
+- **Play publishing:** `local_files/play-service-account.json` (git-ignored Play API key). Without it `upload-aab-to-play.sh` can't publish.
+- **App Store (macOS only):** `local_files/app_sp_pw` (Apple ID app-specific password) for the `altool` upload, and — for the **auto-notes** — `AuthKey_<KEYID>.p8` + `asc_issuer` at the repo root (the App Store Connect API key + Issuer ID, git-ignored). Without the `.p8` the IPA still uploads but the TestFlight notes fall back to a manual paste (the script prints them). If not on macOS, skip Phase B's iOS step and report it.
 
 ---
 

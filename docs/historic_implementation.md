@@ -936,3 +936,20 @@ decision. Mirrored as hard rules in [CLAUDE.md](../CLAUDE.md) and
 - **No auto-restore** — `checkAndSyncIfNeeded()` is deprecated and
   always returns false; cross-device transfer is user-initiated only.
 </content>
+
+## 2026-08-26 — `local_files/` consolidates every git-ignored build input
+
+Secrets, keystores and store credentials used to sit at eleven scattered
+git-ignored paths (repo root, `android/`, `docs/`, `lib/.../google_drive/`),
+which made a new-machine clone a hunt. They now live in one git-ignored
+folder, `local_files/`, with a tracked `pack.sh` that packs/unpacks them
+(AES-256) plus the regenerable platform files `flutter create` would stub.
+`build.gradle.kts` reads `../local_files/key.properties` and the
+`google-services_*.json` pair from there; the Dart desktop OAuth config is a
+symlink from `lib/` into the folder (Dart can't import outside `lib/`); the
+store scripts default to `local_files/…`. One real fix rode along: the debug
+signing config previously used the stock `~/.android/debug.keystore`, so the
+registered-SHA-1 `debug.keystore` in the repo was never actually used — it is
+now wired in when present, which is what makes Google Sign-In work in debug
+builds on a fresh machine.
+

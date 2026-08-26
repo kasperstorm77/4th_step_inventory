@@ -260,11 +260,11 @@ is deliberately no way to clear a release having proven one direction.
 
 | File | Store | What it is | Scope |
 |---|---|---|---|
-| `play-service-account.json` | Play | Google Cloud service-account key, Android Publisher API | Per Play developer account (covers all apps it's granted) |
-| `app_sp_pw` | Apple | Apple ID app-specific password (for `altool`) | Per **Apple ID** — works for every app |
-| `AuthKey_<KEYID>.p8` + `asc_issuer` | Apple | App Store Connect API key (App Manager) + Issuer ID | Per **team** — works for every app in the team |
+| `local_files/play-service-account.json` | Play | Google Cloud service-account key, Android Publisher API | Per Play developer account (covers all apps it's granted) |
+| `local_files/app_sp_pw` | Apple | Apple ID app-specific password (for `altool`) | Per **Apple ID** — works for every app |
+| `local_files/AuthKey_<KEYID>.p8` + `asc_issuer` | Apple | App Store Connect API key (App Manager) + Issuer ID | Per **team** — works for every app in the team |
 
-Android release signing reuses the existing `android/key.properties` +
+Android release signing reuses the existing `local_files/key.properties` +
 keystore (already git-ignored).
 
 #### Bringing the credentials over from another app (what the user asked)
@@ -325,7 +325,7 @@ OAuth for **desktop platforms only** (Windows / macOS / Linux). Mobile
 is already configured:
 - **Android** — configured via SHA-1 fingerprint + package name. No code
   changes; register your debug SHA-1 in Google Cloud Console (see
-  [LOCAL_SETUP.md](./LOCAL_SETUP.md)).
+  [local_files/LOCAL_SETUP.md](../local_files/LOCAL_SETUP.md)).
 - **iOS** — configured via the iOS client ID in
   [mobile_google_auth_service.dart](../lib/shared/services/google_drive/mobile_google_auth_service.dart)
   and `ios/Runner/Info.plist`. No code changes.

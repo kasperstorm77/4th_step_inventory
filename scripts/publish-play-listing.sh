@@ -41,7 +41,7 @@ warn()   { printf "%s!%s %s\n" "$c_yellow" "$c_reset" "$*"; }
 err()    { printf "%s✗%s %s\n" "$c_red"    "$c_reset" "$*" >&2; }
 header() { printf "\n%s%s%s\n" "$c_bold$c_cyan" "$1" "$c_reset"; printf "%s%s%s\n" "$c_bold$c_cyan" "────────────────────────────────────────────────────────────" "$c_reset"; }
 
-key="${PLAY_SERVICE_ACCOUNT_JSON:-play-service-account.json}"
+key="${PLAY_SERVICE_ACCOUNT_JSON:-local_files/play-service-account.json}"
 package="dk.stormstyrken.twelvestepsapp"
 dry_run=0
 assume_yes=0

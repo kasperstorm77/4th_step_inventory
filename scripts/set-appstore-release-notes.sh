@@ -42,13 +42,13 @@ if [ "$top" != "$version" ]; then
   exit 1
 fi
 
-key="${ASC_KEY:-$(ls AuthKey_*.p8 2>/dev/null | head -1)}"
-[ -n "$key" ] && [ -f "$key" ] || { echo "AuthKey_<KEYID>.p8 not found" >&2; exit 1; }
-[ -f asc_issuer ] || { echo "./asc_issuer not found" >&2; exit 1; }
+key="${ASC_KEY:-$(ls local_files/AuthKey_*.p8 2>/dev/null | head -1)}"
+[ -n "$key" ] && [ -f "$key" ] || { echo "local_files/AuthKey_<KEYID>.p8 not found" >&2; exit 1; }
+[ -f local_files/asc_issuer ] || { echo "./local_files/asc_issuer not found" >&2; exit 1; }
 
 ASC_KEY="$key" \
 ASC_KEY_ID="$(basename "$key" | sed -E 's/^AuthKey_(.+)\.p8$/\1/')" \
-ASC_ISSUER_ID="$(tr -d ' \n' < asc_issuer)" \
+ASC_ISSUER_ID="$(tr -d ' \n' < local_files/asc_issuer)" \
 ASC_VERSION="$version" \
 ASC_APPLY="$apply" \
 ASC_NOTES_JSON="$(jq -n --arg en "$en" --arg da "$da" '{"en-GB":$en,"da-DK":$da}')" \
