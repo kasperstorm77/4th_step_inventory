@@ -6,6 +6,22 @@ its `<en-GB>` and `<da-DK>` bodies verbatim into Google Play / TestFlight. Keep
 each locale ≤ 500 characters (Play's limit). The version on the `X.Y.Z - DATE:`
 line must match `pubspec.yaml`.
 
+2.3.8 - 2026-08-26:
+<en-GB>
+- Restoring a backup is now all-or-nothing. If a restore cannot finish, the
+  app automatically puts every record back exactly as it was, so a failed
+  restore never leaves your data half-replaced.
+- The same protection covers a manual import from Emotional Sobriety.
+- Backups remain compatible with Emotional Sobriety.
+</en-GB>
+<da-DK>
+- Gendannelse af en sikkerhedskopi er nu alt eller intet. Kan gendannelsen
+  ikke fuldføres, lægger appen automatisk alle poster tilbage præcis som de
+  var, så en mislykket gendannelse aldrig efterlader dine data halvt udskiftet.
+- Samme beskyttelse gælder en manuel import fra Emotional Sobriety.
+- Sikkerhedskopier er fortsat kompatible med Emotional Sobriety.
+</da-DK>
+
 2.3.7 - 2026-08-09:
 <en-GB>
 - Backups now record which app created them, preventing a backup from another
