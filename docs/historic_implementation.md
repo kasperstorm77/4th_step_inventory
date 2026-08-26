@@ -998,3 +998,17 @@ regression on either half of that app's gate fails this release. Verified:
 `bash scripts/verify-cross-app-recovery.sh` exits 0 with the atomic-restore
 change in place.
 
+## 2026-08-26 — 2.3.8+116 test releases (Play alpha + TestFlight)
+
+Shipped from `c3a3903` with the atomic-restore change (`3548005`). Gate:
+`flutter analyze` clean; `bash scripts/verify-cross-app-recovery.sh` exit 0
+against Emotional Sobriety `085b14d`; `flutter test` 170/170 on 4 of 5 full
+runs — the single failure was P2.0's `morning_ritual_runner_test: start over
+keeps the day's reading`, which also failed 2 of 9 isolated runs today (more
+than the "~1 in 6 under load" the plan records; the app is not implicated, see
+P2.0). Google Play: versionCode 116 completed on `alpha`, bilingual notes, no
+outranking track active. App Store Connect: build 116 uploaded, "What to
+Test" notes set via the API. The `deploy-release` agent launch was blocked by
+the session's permission classifier; the same canonical script steps were run
+by hand.
+

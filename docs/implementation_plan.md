@@ -45,8 +45,10 @@ drives iOS simulators and needs an Android equivalent.
 ### P2.0 `morning_ritual_runner_test` flakes ~1 run in 6 under full-suite load
 
 "start over keeps the day's reading" times out waiting for the confirmation
-dialog's button. It never fails when the file runs alone — only when the whole
-suite runs in parallel, and it got more frequent as test files were added.
+dialog's button. It was believed never to fail when the file runs alone — but on
+2026-08-26 it failed 2 of 9 isolated runs while other Flutter processes were
+active on the machine, so treat it as load-sensitive rather than suite-only.
+It got more frequent as test files were added.
 
 **The app is not implicated.** The failure is the harness, and it sits on a real
 tension this file was built around: every step writes to Hive, whose futures
