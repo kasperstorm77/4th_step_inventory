@@ -19,6 +19,7 @@
 #   bash scripts/promote-play-release.sh --yes          # promote to production (100 %)
 #   bash scripts/promote-play-release.sh --rollout 0.2 --yes
 #   bash scripts/promote-play-release.sh --version-code 117 --yes
+#   bash scripts/promote-play-release.sh --draft --yes    # stage a DRAFT on production; press "Start rollout" in the Console
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -40,12 +41,16 @@ notes_file="release.md"
 package="dk.stormstyrken.twelvestepsapp"
 version_code=""
 rollout=""
+draft=0
+skip_validate=0
 assume_yes=0
 
 while (( $# )); do
   case "$1" in
     --version-code) shift; version_code="${1:?--version-code needs a value}" ;;
     --rollout)      shift; rollout="${1:?--rollout needs a fraction in (0,1)}" ;;
+    --draft)        draft=1 ;;
+    --skip-validate) skip_validate=1 ;;   # diagnostic: go straight to commit (Play validates on commit anyway)
     --key)          shift; key="${1:?--key needs a path}" ;;
     --notes)        shift; notes_file="${1:?--notes needs a path}" ;;
     --package)      shift; package="${1:?--package needs a value}" ;;
@@ -69,6 +74,8 @@ ssot=$(grep -m1 '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*//')
 [[ "$version_code" =~ ^[0-9]+$ ]] || { err "versionCode must be numeric, got '$version_code'"; exit 1; }
 
 status="completed"; fraction_json="null"
+if [ "$draft" -eq 1 ] && [ -n "$rollout" ]; then err "--draft and --rollout are mutually exclusive"; exit 2; fi
+[ "$draft" -eq 1 ] && status="draft"
 if [ -n "$rollout" ]; then
   awk -v f="$rollout" 'BEGIN{exit !(f>0 && f<1)}' || { err "--rollout must be a fraction strictly between 0 and 1"; exit 1; }
   status="inProgress"; fraction_json="$rollout"
@@ -132,9 +139,9 @@ print_track_report() {
     .[] | "  \($t)\t\(.status // "?")  versionCode=\((.versionCodes // []) | join(",") | if . == "" then "-" else . end)  \(.name // "")" end' <<<"$1" \
     | awk -F'\t' '{printf "  %-12s %s\n", $1, $2}'
 }
-serves() { # $1=tracks json $2=track $3=code → count of active releases carrying the code
-  jq -r --arg t "$2" --arg vc "$3" '[.tracks[]? | select(.track == $t) | (.releases // [])[]
-    | select(.status == "inProgress" or .status == "completed") | select((.versionCodes // []) | index($vc))] | length' <<<"$1"
+serves() { # $1=tracks json $2=track $3=code $4=status-set → count of matching releases carrying the code
+  jq -r --arg t "$2" --arg vc "$3" --arg want "$4" '[.tracks[]? | select(.track == $t) | (.releases // [])[]
+    | select(($want | split(",")) | index(.status)) | select((.versionCodes // []) | index($vc))] | length' <<<"$1"
 }
 
 # ─── 1. open an edit and prove Play already holds the bundle ─────────────────
@@ -167,9 +174,11 @@ http PUT "$api/edits/$edit_id/tracks/$track" -H "Content-Type: application/json"
 ok "v$version (versionCode $version_code) staged on '$track' with en-GB + da-DK notes"
 
 # ─── 3. validate, then commit or discard ─────────────────────────────────────
-header "Validate edit"
-http POST "$api/edits/$edit_id:validate" >/dev/null
-ok "Play accepts the edit (listing, policy and bundle checks passed)"
+if [ "$skip_validate" -eq 0 ]; then
+  header "Validate edit"
+  http POST "$api/edits/$edit_id:validate" >/dev/null
+  ok "Play accepts the edit (listing, policy and bundle checks passed)"
+fi
 
 if [ "$assume_yes" -ne 1 ]; then
   header "Dry run — discarding edit"
@@ -189,7 +198,15 @@ after=$(http GET "$api/edits/$eid/tracks")
 http DELETE "$api/edits/$eid" >/dev/null
 print_track_report "$after"
 echo
-if [ "$(serves "$after" "$track" "$version_code")" -gt 0 ]; then
+if [ "$status" = "draft" ]; then
+  if [ "$(serves "$after" "$track" "$version_code" "draft")" -gt 0 ]; then
+    ok "'$track' holds versionCode $version_code as a DRAFT — nothing is live yet."
+    echo "  Play Console → Production → Releases → the draft → Review release → Start rollout."
+  else
+    err "'$track' does not report a draft carrying versionCode $version_code — check Play Console → Production."
+    exit 4
+  fi
+elif [ "$(serves "$after" "$track" "$version_code" "inProgress,completed")" -gt 0 ]; then
   ok "'$track' serves versionCode $version_code."
   [ "$status" = "inProgress" ] && warn "Staged rollout at $rollout — raise it to 100 % in Play Console → Production."
   echo "  Watch review + rollout at Play Console → Production."
