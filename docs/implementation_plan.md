@@ -258,6 +258,11 @@ is deliberately no way to clear a release having proven one direction.
   attached build can be several builds behind what TestFlight has; check before
   submitting.
 - `scripts/fix-appstore-name.sh` — verify (and correct) the App Store app name.
+- `scripts/create-appstore-version.sh` — create the App Store version record
+  for pubspec.yaml's `X.Y.Z` (the "+" button in App Store Connect). After a
+  version goes READY_FOR_SALE nothing creates the next one, and both scripts
+  below fail with "no App Store version" until it exists. Idempotent; never
+  attaches a build or submits.
 - `scripts/attach-appstore-build.sh` — point the pending App Store version at the
   build you just uploaded. **TestFlight upload does not do this**; it is a
   separate relationship and the one reviewers actually get. Defaults to

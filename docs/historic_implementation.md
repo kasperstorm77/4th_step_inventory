@@ -1031,3 +1031,24 @@ by hand is never overridden — and never under a running ritual, because
 changing `selectedDate` resets the runner. Guarded by
 [`test/morning_ritual_day_rollover_test.dart`](../test/morning_ritual_day_rollover_test.dart).
 `EveningRitualHome` has the identical seed pattern and is not changed here.
+
+## 2026-08-27 — 2.3.9+117 test releases, staged for submission on both stores
+
+Shipped from `53c2ad8` with the Morning Ritual day-rollover fix. Gate:
+`flutter analyze` clean; `flutter test` 174/174; `bash
+scripts/verify-cross-app-recovery.sh` exit 0 (both directions; Emotional
+Sobriety's parity suites 14/14). Google Play: versionCode 117 completed on
+`alpha` with en-GB + da-DK notes (first bundle upload hit a transient HTTP 503
+from the Play API; the retry succeeded), no outranking track active. App Store
+Connect: build 117 uploaded and VALID, TestFlight "What to Test" set via the
+API, and — new this release — the **App Store version 2.3.9 record created,
+its "What's New" written in both locales, and build 117 attached**, so the
+version is ready to submit from App Store Connect. Creating the record needed
+a new tool, `scripts/create-appstore-version.sh`: after 2.3.8 went
+READY_FOR_SALE nothing had created the next version, so
+`attach-appstore-build.sh` and `set-appstore-release-notes.sh` both failed with
+"no App Store version 2.3.9". Submitting remains a manual step on purpose; a
+Play production promotion is still gated on P1.1 (screenshots). The
+`deploy-release` agent launch and `git push` were blocked by the session's
+permission classifier; the canonical script steps were run by hand and the
+push was left to the owner.
