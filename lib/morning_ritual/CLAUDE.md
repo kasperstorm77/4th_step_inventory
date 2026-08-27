@@ -31,6 +31,14 @@ days saved as `MorningRitualEntry`. See
 - **Auto-load fires at most once per calendar day** (`morning_ritual_last_forced_date`).
   Window is inclusive of start, exclusive of end. It runs in two places
   (main.dart after Drive sync, and `AppWidget` on resume) — keep both.
+- **The calendar selection follows the clock on resume.** `MorningRitualHome`
+  seeds `_selectedDay` from `DateTime.now()` once and lives for the app's
+  lifetime, so on `AppLifecycleState.resumed` it runs
+  `services/selected_day_rollover.dart`: move to today only if the selection
+  is still the auto-set one (never a day the user picked) and no ritual is
+  running (a date change resets the runner).
+  [test/morning_ritual_day_rollover_test.dart](../../test/morning_ritual_day_rollover_test.dart)
+  guards the rule.
 - **Early-completing a running timer records `skipped`**, not
   `completed`. Wake-lock is held **only** while a timer actively counts.
 - **The timer-end alarm plays to its natural end** (`looping: false`) —

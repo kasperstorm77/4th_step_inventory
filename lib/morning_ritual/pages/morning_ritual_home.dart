@@ -3,6 +3,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../services/morning_ritual_service.dart';
+import '../services/selected_day_rollover.dart';
 import '../../shared/localizations.dart';
 import '../../shared/services/app_switcher_service.dart';
 import '../../shared/services/app_help_service.dart';
@@ -21,10 +22,15 @@ class MorningRitualHome extends StatefulWidget {
 }
 
 class _MorningRitualHomeState extends State<MorningRitualHome>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final TabController _tabController;
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
+
+  /// The day the selection was last set automatically (initial build or a
+  /// rollover). While `_selectedDay` still equals it the user has not picked
+  /// a day by hand, so a resume on a new day may move the selection to today.
+  DateTime _autoSelectedDay = DateTime.now();
   final GlobalKey<MorningRitualSettingsTabState> _settingsKey = GlobalKey();
   bool _ritualInProgress = false;
 
@@ -33,6 +39,30 @@ class _MorningRitualHomeState extends State<MorningRitualHome>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_onTabChanged);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) _rollOverSelectedDay();
+  }
+
+  /// Follow the clock onto a new calendar day when the page was left open or
+  /// backgrounded overnight. See [rolledOverSelectedDay] for the rule.
+  void _rollOverSelectedDay() {
+    final today = rolledOverSelectedDay(
+      selected: _selectedDay,
+      autoSelected: _autoSelectedDay,
+      now: DateTime.now(),
+      ritualInProgress: _ritualInProgress,
+    );
+    if (today == null || !mounted) return;
+    setState(() {
+      _selectedDay = today;
+      _focusedDay = today;
+      _autoSelectedDay = today;
+    });
   }
 
   void _onTabChanged() {
@@ -41,6 +71,7 @@ class _MorningRitualHomeState extends State<MorningRitualHome>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     // Ensure wake lock is disabled when leaving Morning Ritual app

@@ -1012,3 +1012,22 @@ Test" notes set via the API. The `deploy-release` agent launch was blocked by
 the session's permission classifier; the same canonical script steps were run
 by hand.
 
+
+## 2026-08-27 — Morning Ritual follows the clock onto a new day
+
+`MorningRitualHome` seeded `_selectedDay` / `_focusedDay` from `DateTime.now()`
+once in state, and the router keys the page by app id, so it lived as long as
+the app did. A phone left on Morning Ritual overnight — or backgrounded and
+resumed the next morning — still had yesterday selected; the Today tab's
+`_isToday` was then false and Start was hidden. `AppWidget`'s resume hook only
+handles the auto-load and, when already on Morning Ritual, just marks the day
+forced without touching the selection.
+
+Fix: the home page is a `WidgetsBindingObserver` and, on resume, asks the
+pure rule [`rolledOverSelectedDay`](../lib/morning_ritual/services/selected_day_rollover.dart)
+whether to move the selection to today. It moves only when the selection is
+still the one the page set itself (`_autoSelectedDay`) — a day the user picked
+by hand is never overridden — and never under a running ritual, because
+changing `selectedDate` resets the runner. Guarded by
+[`test/morning_ritual_day_rollover_test.dart`](../test/morning_ritual_day_rollover_test.dart).
+`EveningRitualHome` has the identical seed pattern and is not changed here.

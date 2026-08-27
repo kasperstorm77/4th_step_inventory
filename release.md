@@ -6,6 +6,20 @@ its `<en-GB>` and `<da-DK>` bodies verbatim into Google Play / TestFlight. Keep
 each locale ≤ 500 characters (Play's limit). The version on the `X.Y.Z - DATE:`
 line must match `pubspec.yaml`.
 
+2.3.9 - 2026-08-27:
+<en-GB>
+- Morning Ritual now moves to the current day on its own when you return to
+  the app on a new day. Previously the calendar could stay on the previous
+  day, hiding the Start button until you tapped today by hand.
+- Backups remain compatible with Emotional Sobriety.
+</en-GB>
+<da-DK>
+- Morgenritualet skifter nu selv til dags dato, når du vender tilbage til
+  appen på en ny dag. Tidligere kunne kalenderen blive stående på dagen før,
+  så Start-knappen var skjult, indtil du selv trykkede på i dag.
+- Sikkerhedskopier er fortsat kompatible med Emotional Sobriety.
+</da-DK>
+
 2.3.8 - 2026-08-26:
 <en-GB>
 - Restoring a backup is now all-or-nothing. If a restore cannot finish, the
