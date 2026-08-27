@@ -82,6 +82,7 @@ android/*
 android/app/*
 !android/app/build.gradle.kts
 !android/app/src/
+!android/app/proguard-rules.pro
 android/app/src/*
 !android/app/src/main/
 android/app/src/main/*

@@ -272,11 +272,18 @@ is deliberately no way to clear a release having proven one direction.
 - `scripts/publish-play-listing.sh` — the Play listing text, read from
   `docs/play_store-retain/PLAY_STORE_DESCRIPTIONS.md`.
 - `scripts/build-aab.sh` — `flutter build appbundle --release`; verifies
-  the signer is the release key (not the debug fallback).
+  the signer is the release key (not the debug fallback). The release build
+  type runs **R8** (`isMinifyEnabled` + `isShrinkResources`, keep rules in
+  `android/app/proguard-rules.pro`) and embeds the native symbol table
+  (`debugSymbolLevel = "SYMBOL_TABLE"`), so it also writes
+  `build/app/outputs/mapping/release/mapping.txt`.
 - `scripts/upload-aab-to-play.sh [--dry-run|--yes]` — drives the Google
   Play Developer API (`edits.insert → bundles.upload → tracks.update →
   edits.commit`) to the **alpha** (Closed testing) track, attaching the
-  en-GB + da-DK notes from `release.md` (≤ 500 chars/locale enforced).
+  en-GB + da-DK notes from `release.md` (≤ 500 chars/locale enforced), and
+  attaches the R8 `mapping.txt` to the uploaded versionCode
+  (`deobfuscationFiles.upload`) so Play de-obfuscates crash and ANR traces —
+  it warns, but does not fail, when the mapping is missing.
   **The track is hard-pinned — there is no `--track` flag**, and after
   committing it re-reads the tracks and fails if `internal` holds an active
   release that would shadow the publish (architecture.md §7.1).

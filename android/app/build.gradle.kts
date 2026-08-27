@@ -86,8 +86,18 @@ android {
         }
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // R8: shrink + obfuscate. Produces build/app/outputs/mapping/release/
+            // mapping.txt, which scripts/upload-aab-to-play.sh attaches to the
+            // bundle so Play can de-obfuscate crash and ANR stack traces.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            // Ship the native symbol table too, so Play stops flagging the
+            // bundle for missing debug symbols.
+            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
         }
     }
 }

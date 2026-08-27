@@ -424,6 +424,20 @@ version_code=$(jq -r .versionCode <<<"$upload_resp")
 [ -n "$version_code" ] && [ "$version_code" != "null" ] || { err "Upload returned no versionCode."; exit 1; }
 ok "Uploaded — versionCode $version_code"
 
+# ─── 2b. attach the R8 mapping file ──────────────────────────────────────────
+# Without it Play flags the bundle ("no deobfuscation file") and shows
+# obfuscated crash / ANR traces. Produced by isMinifyEnabled in
+# android/app/build.gradle.kts next to the bundle.
+mapping="${aab_abs%/bundle/release/*}/mapping/release/mapping.txt"
+if [ -f "$mapping" ]; then
+  say "uploading R8 mapping ($(du -h "$mapping" | cut -f1 | tr -d ' '))…"
+  http POST "$upload_api/edits/$edit_id/apks/$version_code/deobfuscationFiles/proguard?uploadType=media" \
+    -H "Content-Type: application/octet-stream" --data-binary "@$mapping" >/dev/null
+  ok "Mapping file attached to versionCode $version_code"
+else
+  warn "No R8 mapping file at $mapping — Play will flag the bundle as lacking a deobfuscation file."
+fi
+
 # ─── 3. assign to the track with bilingual release notes ─────────────────────
 header "Assign to track '$track' ($status)"
 track_payload=$(jq -cn \

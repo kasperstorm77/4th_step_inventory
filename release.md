@@ -8,15 +8,13 @@ line must match `pubspec.yaml`.
 
 2.3.9 - 2026-08-27:
 <en-GB>
-- Morning Ritual now moves to the current day on its own when you return to
-  the app on a new day. Previously the calendar could stay on the previous
-  day, hiding the Start button until you tapped today by hand.
+- Morning Ritual now opens on today's date, even if the app was left open or
+  in the background overnight.
 - Backups remain compatible with Emotional Sobriety.
 </en-GB>
 <da-DK>
-- Morgenritualet skifter nu selv til dags dato, når du vender tilbage til
-  appen på en ny dag. Tidligere kunne kalenderen blive stående på dagen før,
-  så Start-knappen var skjult, indtil du selv trykkede på i dag.
+- Morgenritualet åbner nu på dags dato, også når appen har stået åben eller i
+  baggrunden natten over.
 - Sikkerhedskopier er fortsat kompatible med Emotional Sobriety.
 </da-DK>
 

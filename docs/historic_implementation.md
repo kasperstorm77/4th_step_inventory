@@ -1067,3 +1067,26 @@ devices, and use Play App Signing" in Play Console → Users & permissions is an
 owner-only step; until then production releases are made by hand in the
 Console (Production → Create new release → Add from library → 117). P1.1
 (screenshots) still stands as the listing-quality gate for a public release.
+
+## 2026-08-27 — R8 + mapping upload; 2.3.9+118 on alpha, 117 already on production
+
+Play Console flagged versionCode 117: "There is no deobfuscation file
+associated with this App Bundle." The release build type had
+`isMinifyEnabled = false`, so no R8 ran and no `mapping.txt` existed to upload.
+Fixed in `android/app/build.gradle.kts`: R8 shrinking and obfuscation on for
+release, `proguard-rules.pro` with keep rules for `flutter_local_notifications`
+(Gson reflection) and a `-dontwarn` for the absent Play Core split-install
+classes, plus `debugSymbolLevel = "SYMBOL_TABLE"` so the bundle carries native
+symbols. `scripts/upload-aab-to-play.sh` now attaches the mapping to the
+uploaded versionCode right after the bundle upload. Because Play dedupes on
+versionCode the fix needed a new build: **2.3.9+118** (same marketing version;
+the App Store keeps build 117 — iOS is unaffected). Built 46 MB (down from 48),
+mapping 9.5 MB attached, live on `alpha`. The Dart sources are unchanged since
+the cross-app gate ran against `53c2ad8`, so that verdict still covers this
+bundle; the gate was not re-run. Read-back showed the owner had meanwhile put
+**117 on production by hand** — that release keeps the warning until 118
+replaces it. **First R8 build of this app: exercise the alpha on a device
+(notifications, Google Sign-In / Drive, alarm sound) before promoting 118.**
+The release notes for 2.3.9 were also reworded to describe the behaviour
+rather than the old bug and re-pushed to the App Store version and TestFlight
+build 117; production 117 on Play carries the earlier wording.
