@@ -1052,3 +1052,18 @@ Play production promotion is still gated on P1.1 (screenshots). The
 `deploy-release` agent launch and `git push` were blocked by the session's
 permission classifier; the canonical script steps were run by hand and the
 push was left to the owner.
+
+## 2026-08-27 — Production promotion on Play needs a permission the service account lacks
+
+Asked to put 2.3.9 (versionCode 117) on Play production. `upload-aab-to-play.sh`
+hard-pins `alpha` by design, so the promotion got its own explicit tool,
+`scripts/promote-play-release.sh`: opens an edit, proves Play already holds the
+bundle and that production serves a lower code, stages the production release
+with the `release.md` notes (optional staged rollout via `--rollout`), runs
+`edits.validate`, and commits only with `--yes`. The dry run reached validate
+and Play answered HTTP 403 `PERMISSION_DENIED`: the service account was set up
+with "Release to testing tracks" only. Granting "Release to production, exclude
+devices, and use Play App Signing" in Play Console → Users & permissions is an
+owner-only step; until then production releases are made by hand in the
+Console (Production → Create new release → Add from library → 117). P1.1
+(screenshots) still stands as the listing-quality gate for a public release.

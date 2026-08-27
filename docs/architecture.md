@@ -656,7 +656,9 @@ tooling now enforces, both learned the hard way:
 - **Android publishes to the closed `alpha` track and nowhere else.**
   `scripts/upload-aab-to-play.sh` hard-pins it; there is deliberately no
   `--track` flag, and passing one is an error. Open testing and production
-  are not destinations for this script.
+  are not destinations for this script. Production is a separate, explicit
+  step — `scripts/promote-play-release.sh` — that never uploads a bundle and
+  only names a versionCode Play already holds.
 - **Play serves a tester the highest-priority track they belong to** —
   `internal` → `closed` (alpha) → `open` (beta) → `production`. A release left
   active on a *higher*-priority track therefore shadows the one just published,

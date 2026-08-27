@@ -281,6 +281,15 @@ is deliberately no way to clear a release having proven one direction.
   committing it re-reads the tracks and fails if `internal` holds an active
   release that would shadow the publish (architecture.md §7.1).
   `--audit-tracks` runs that read-only; `--self-test` pins the query.
+- `scripts/promote-play-release.sh [--rollout F] [--yes]` — put an
+  alpha-tested versionCode (default: pubspec.yaml's `+BUILD`) on the
+  **production** track with the `release.md` notes. Uploads nothing; refuses a
+  versionCode Play does not already hold or that production already serves;
+  `edits.validate` runs before commit; dry run unless `--yes`. **Needs the
+  service account to hold "Release to production, exclude devices, and use
+  Play App Signing"** in Play Console → Users & permissions — with only
+  "Release to testing tracks" the validate/commit call returns HTTP 403
+  (2026-08-27). Production remains gated on P1.1 (screenshots).
 - `scripts/upload-ipa-to-testflight.sh --build` — *macOS only*; builds the
   App Store IPA, verifies it's `Apple Distribution`-signed, uploads via
   `altool`, then sets the TestFlight "What to Test" notes automatically via
